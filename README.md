@@ -1,6 +1,6 @@
 # Bollard
 
-The gate between hearing and hands: every spoken command to a robot arm is transcribed by Speechmatics, judged against a safety policy, and only then executed — and every command leaves a tamper-evident receipt.
+The gate between hearing and hands: every spoken command to a robot arm is transcribed by Speechmatics, judged against a safety policy, and only then executed. Every command leaves a tamper-evident receipt.
 
 ![The Bollard cockpit mid-verdict](docs/media/hero.png)
 
