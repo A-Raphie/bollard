@@ -376,14 +376,14 @@ export default function CockpitPage() {
 
         {/* VERDICT + TABLE */}
         <section className="flex min-h-0 flex-col gap-3">
-          <div className={`annunciator flex items-center gap-4 px-4 py-3 ${allowPulse ? “allow-pulse” : “”} ${tileTone}`}>
-            <span className=”text-xl font-bold tracking-[0.18em]”>{tileWord}</span>
-            <div className=”min-w-0 flex-1 text-ink”>
-              <p className=”line-clamp-2 font-mono text-[13px] md:truncate”>{tileMain}</p>
-              <p className=”line-clamp-2 text-[12px] text-ink-2”>{tileSub}</p>
+          <div className={`annunciator flex items-center gap-4 px-4 py-3 ${allowPulse ? "allow-pulse" : ""} ${tileTone}`}>
+            <span className="text-xl font-bold tracking-[0.18em]">{tileWord}</span>
+            <div className="min-w-0 flex-1 text-ink">
+              <p className="line-clamp-2 font-mono text-[13px] md:truncate">{tileMain}</p>
+              <p className="line-clamp-2 text-[12px] text-ink-2">{tileSub}</p>
             </div>
-            <span className=”micro hidden md:block”>
-              {hearing ? “SRC 1” : verdictView?.source === “typed” ? “SRC 2” : verdictView ? “SRC 1” : “POLICY V1”}
+            <span className="micro hidden md:block">
+              {hearing ? "SRC 1" : verdictView?.source === "typed" ? "SRC 2" : verdictView ? "SRC 1" : "POLICY V1"}
             </span>
           </div>
           <div className="panel min-h-0 flex-1 overflow-hidden p-2">
