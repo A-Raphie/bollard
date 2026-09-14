@@ -91,12 +91,10 @@ export class VoiceSession {
       if (d.message === "RecognitionStarted") {
         this.setState("listening");
         // the pipeline must produce at least one audio callback; if it never
-        // does, the context is suspended or the device delivers nothing
+        // does, try to resume the context once, then fail loudly
         if (this.captureProbe) clearTimeout(this.captureProbe);
         this.captureProbe = setTimeout(() => {
-          if (this.state !== "listening" || this.frame > 0) return;
-          const message = "Audio capture is not starting — the audio context is suspended or the microphone delivers no samples.";
-          void this.stop().then(() => this.setState("error", message));
+          void this.probeCapture();
         }, 3500);
       } else if (d.message === "AddPartialTranscript") {
         if (meta?.transcript) this.cbs.onPartial?.(meta.transcript);
@@ -133,6 +131,13 @@ export class VoiceSession {
           // surfaced by the capture probe below
         }
       }
+      // embedded browsers suspend contexts when the pane hides or the tab
+      // switches: pull it back automatically while a session is live
+      this.ctx.onstatechange = () => {
+        if (this.state === "listening" && this.ctx?.state === "suspended") {
+          void this.ctx.resume().catch(() => {});
+        }
+      };
       const source = this.ctx.createMediaStreamSource(this.stream);
       this.processor = this.ctx.createScriptProcessor(4096, 1, 1);
       this.lastSoundAt = performance.now();
@@ -202,6 +207,35 @@ export class VoiceSession {
       await this.stop();
       this.setState("error", e instanceof Error ? e.message : "Could not open the microphone");
     }
+  }
+
+  /**
+   * Embedded browsers suspend audio contexts freely (hidden pane, tab switch).
+   * Try to resume; self-heal if the context comes back, error only if the
+   * browser refuses to deliver samples at all.
+   */
+  private async probeCapture(): Promise<void> {
+    if (this.state !== "listening" || this.frame > 0) return;
+    if (this.ctx && this.ctx.state !== "running") {
+      try {
+        await this.ctx.resume();
+      } catch {
+        // re-checked below
+      }
+      await new Promise((r) => setTimeout(r, 600));
+      if (this.frame > 0) return; // recovered
+      if (this.ctx.state !== "running") {
+        const message = "The browser suspended audio capture and refused to resume it. Reload the page and press the button again (or use your normal Chrome, whose microphone is not restricted).";
+        await this.stop();
+        this.setState("error", message);
+        return;
+      }
+    }
+    // context runs but delivers nothing: reschedule one more probe cycle
+    if (this.captureProbe) clearTimeout(this.captureProbe);
+    this.captureProbe = setTimeout(() => {
+      void this.probeCapture();
+    }, 2500);
   }
 
   private async handleAudio(e: AudioProcessingEvent): Promise<void> {
