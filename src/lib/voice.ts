@@ -22,6 +22,16 @@ function floatToS16(input: Float32Array): ArrayBuffer {
   return out.buffer;
 }
 
+/** Decode any browser-supported audio file and resample to 16 kHz mono s16. */
+async function to16kS16(file: ArrayBuffer): Promise<ArrayBuffer> {
+  const ctx = new AudioContext({ sampleRate: 16000 });
+  const decoded = await ctx.decodeAudioData(file);
+  const ch = decoded.getChannelData(0);
+  const out = floatToS16(ch);
+  await ctx.close();
+  return out;
+}
+
 export class VoiceSession {
   private client = new RealtimeClient();
   private ctx: AudioContext | null = null;
@@ -113,6 +123,50 @@ export class VoiceSession {
       this.watchdog = setTimeout(() => {
         void this.stop();
       }, 120_000);
+      // dev-only: inject an audio file through the exact STT pipeline (IAB test
+      // environments hand out silent mic tracks; this proves STT + config E2E)
+      if (import.meta.env.DEV) {
+        (window as unknown as { __bollardInjectAudio?: (buf: ArrayBuffer) => Promise<string> }).__bollardInjectAudio =
+          async (buf: ArrayBuffer) => {
+            const res = await fetch("/api/token", { method: "POST" });
+            const { jwt } = (await res.json()) as { jwt: string };
+            const client = new RealtimeClient();
+            const transcript = new Promise<string>((resolve, reject) => {
+              let parts: string[] = [];
+              let settle: ReturnType<typeof setTimeout> | null = null;
+              client.addEventListener("receiveMessage", (evt) => {
+                const d = evt.data;
+                const meta = "metadata" in d ? (d.metadata as { transcript?: string } | undefined) : undefined;
+                if (d.message === "AddTranscript" && meta?.transcript) {
+                  parts.push(meta.transcript);
+                  if (settle) clearTimeout(settle);
+                  settle = setTimeout(() => resolve(parts.join(" ")), 2000);
+                } else if (d.message === "Error") reject(new Error("STT error"));
+              });
+            });
+            await client.start(jwt, {
+              transcription_config: { language: "en", max_delay: 0.7, enable_partials: false },
+              audio_format: { type: "raw", encoding: "pcm_s16le", sample_rate: 16000 },
+            });
+            const pcm = await to16kS16(buf);
+            const chunk = 8192;
+            for (let i = 0; i < pcm.byteLength; i += chunk) {
+              client.sendAudio(pcm.slice(i, i + chunk));
+              await new Promise((r) => setTimeout(r, 120));
+            }
+            client.sendAudio(new ArrayBuffer(8192)); // silence tail to flush the final
+            const text = await Promise.race([
+              transcript,
+              new Promise<string>((_, rej) => setTimeout(() => rej(new Error("STT timeout")), 15000)),
+            ]);
+            try {
+              client.stopRecognition({ noTimeout: true });
+            } catch {
+              // closed
+            }
+            return text;
+          };
+      }
     } catch (e) {
       await this.stop();
       this.setState("error", e instanceof Error ? e.message : "Could not open the microphone");
