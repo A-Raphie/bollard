@@ -224,7 +224,8 @@ export class VoiceSession {
       }
       await new Promise((r) => setTimeout(r, 600));
       if (this.frame > 0) return; // recovered
-      if (this.ctx.state !== "running") {
+      const ctxState = String(this.ctx.state);
+      if (ctxState !== "running") {
         const message = "The browser suspended audio capture and refused to resume it. Reload the page and press the button again (or use your normal Chrome, whose microphone is not restricted).";
         await this.stop();
         this.setState("error", message);
