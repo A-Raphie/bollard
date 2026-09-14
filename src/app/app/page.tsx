@@ -52,6 +52,7 @@ export default function CockpitPage() {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [voiceDetail, setVoiceDetail] = useState<string | undefined>();
   const [level, setLevel] = useState(0);
+  const [allowPulse, setAllowPulse] = useState(false);
 
   // boot the sim once
   useEffect(() => {
@@ -163,6 +164,8 @@ export default function CockpitPage() {
           heard, source, confidence, allowed: true, code: "ALLOW",
           reasons: verdict.reasons, careNotes: verdict.careNotes, actionLine,
         });
+        setAllowPulse(true);
+        setTimeout(() => setAllowPulse(false), 950);
       } else {
         setPhase("snubbed");
         setVerdictView({
@@ -322,7 +325,7 @@ export default function CockpitPage() {
         {/* VERDICT + TABLE */}
         <section className="flex min-h-0 flex-col gap-3">
           <div
-            className={`annunciator flex items-center gap-4 px-4 py-3 ${
+            className={`annunciator flex items-center gap-4 px-4 py-3 ${allowPulse ? "allow-pulse" : ""} ${
               !verdictView
                 ? "text-ink-2"
                 : verdictView.code === "EVALUATING" || verdictView.code === "BUSY"

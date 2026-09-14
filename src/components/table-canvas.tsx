@@ -38,8 +38,6 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     let raf = 0;
-    let last = performance.now();
-
     const draw = (now: number) => {
       try {
         runFrame(now);
@@ -57,8 +55,7 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
       }
       const sim = simRef.current;
       if (!sim) {
-        raf = requestAnimationFrame(draw);
-        return;
+        return; // wrapper reschedules
       }
       sim.advance();
 
@@ -78,28 +75,27 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
       const X = (wx: number) => cx + wx * scale;
       const Y = (wy: number) => cy + wy * scale;
 
-      // table
-      ctx.fillStyle = PALETTE.tableFill;
-      roundedRect(
-        ctx,
-        X(TABLE.minX),
-        Y(TABLE.minY),
-        (TABLE.maxX - TABLE.minX) * scale,
-        (TABLE.maxY - TABLE.minY) * scale,
-        8,
-      );
+      // table: warm walnut on the slate cockpit
+      ctx.fillStyle = PALETTE.tableWood;
+      roundedRect(ctx, X(TABLE.minX), Y(TABLE.minY), (TABLE.maxX - TABLE.minX) * scale, (TABLE.maxY - TABLE.minY) * scale, 10);
       ctx.fill();
-      ctx.strokeStyle = PALETTE.lineStrong;
+      ctx.strokeStyle = PALETTE.tableRim;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // subtle top-edge highlight so the surface reads as lit from above
+      ctx.strokeStyle = "rgba(255,236,200,0.05)";
       ctx.lineWidth = 1;
+      roundedRect(ctx, X(TABLE.minX) + 3, Y(TABLE.minY) + 3, (TABLE.maxX - TABLE.minX) * scale - 6, (TABLE.maxY - TABLE.minY) * scale - 6, 8);
       ctx.stroke();
 
-      // placemats + tray
+      // placemats (woven cloth) + tray
       for (const key of ["left-placemat", "right-placemat"] as const) {
         const z = ZONES[key];
         ctx.fillStyle = PALETTE.placematFill;
         roundedRect(ctx, X(z.x - 0.17), Y(z.y - 0.12), 0.34 * scale, 0.24 * scale, 5);
         ctx.fill();
         ctx.strokeStyle = PALETTE.line;
+        ctx.lineWidth = 1;
         ctx.stroke();
       }
       const tray = ZONES.tray;
@@ -113,43 +109,221 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
       ctx.textAlign = "center";
       ctx.fillText("TRAY", X(tray.x), Y(tray.y - 0.12));
 
-      // objects — labels de-collide: crowded clusters stack their captions
+      // objects: per-class shapes with soft shadows; duplicates numbered; hazards captioned
+      const familyTotals = new Map<string, number>();
+      const familySeen = new Map<string, number>();
+      for (const def of OBJECTS) {
+        const st = sim.scene.objects[def.id];
+        if (!st || !st.onTable) continue;
+        familyTotals.set(def.label, (familyTotals.get(def.label) ?? 0) + 1);
+      }
       const drawnLabels: Array<{ x: number; y: number }> = [];
       for (const def of OBJECTS) {
         const st = sim.scene.objects[def.id];
         if (!st || !st.onTable) continue;
         const px = X(st.x);
         const py = Y(st.y);
-        ctx.fillStyle = def.safety === "sharp" ? PALETTE.bladeFill : def.safety === "hot" ? PALETTE.deny : PALETTE.neutral;
+        const r = 0.045 * scale;
+        // soft ground shadow
+        ctx.fillStyle = PALETTE.shadow;
         ctx.beginPath();
-        ctx.arc(px, py, 0.045 * scale, 0, Math.PI * 2);
+        ctx.ellipse(px + 2, py + 4, r * 1.05, r * 0.6, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = def.safety === "fragile" ? PALETTE.ink : PALETTE.lineStrong;
-        ctx.stroke();
-        // state glyph above the object — label + state text, never color alone
+
+        const seen = (familySeen.get(def.label) ?? 0) + 1;
+        familySeen.set(def.label, seen);
+        const numbered = (familyTotals.get(def.label) ?? 0) > 1 ? `${def.label} ${seen}` : def.label;
+
+        switch (def.label) {
+          case "plate": {
+            ctx.fillStyle = PALETTE.ceramic;
+            ctx.beginPath();
+            ctx.arc(px, py, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = PALETTE.ceramicRim;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(px, py, r * 0.55, 0, Math.PI * 2);
+            ctx.stroke();
+            break;
+          }
+          case "glass": {
+            ctx.fillStyle = PALETTE.glassFill;
+            ctx.beginPath();
+            ctx.arc(px, py, r * 0.92, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = PALETTE.glassRim;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.strokeStyle = "rgba(255,255,255,0.5)";
+            ctx.beginPath();
+            ctx.arc(px, py, r * 0.55, -2.3, -1.2);
+            ctx.stroke();
+            break;
+          }
+          case "bowl": {
+            ctx.fillStyle = PALETTE.ceramic;
+            ctx.beginPath();
+            ctx.arc(px, py, r, Math.PI, 0);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = PALETTE.ceramicRim;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            break;
+          }
+          case "knife": {
+            ctx.strokeStyle = PALETTE.bladeFill;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(px - r, py + r * 0.6);
+            ctx.lineTo(px + r * 0.4, py - r * 0.6);
+            ctx.stroke();
+            ctx.strokeStyle = PALETTE.metal;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(px + r * 0.4, py - r * 0.6);
+            ctx.lineTo(px + r, py - r);
+            ctx.stroke();
+            break;
+          }
+          case "fork": {
+            ctx.strokeStyle = PALETTE.metal;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(px - r, py + r);
+            ctx.lineTo(px + r * 0.3, py - r * 0.3);
+            ctx.stroke();
+            for (const t of [-1, 0, 1]) {
+              ctx.beginPath();
+              ctx.moveTo(px + r * 0.3, py - r * 0.3);
+              ctx.lineTo(px + r * 0.3 + t * r * 0.35 - r * 0.1, py - r);
+              ctx.stroke();
+            }
+            break;
+          }
+          case "spoon": {
+            ctx.strokeStyle = PALETTE.metal;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(px - r, py + r);
+            ctx.lineTo(px + r * 0.2, py - r * 0.2);
+            ctx.stroke();
+            ctx.fillStyle = PALETTE.metal;
+            ctx.beginPath();
+            ctx.ellipse(px + r * 0.45, py - r * 0.45, r * 0.45, r * 0.3, -0.7, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+          }
+          case "napkin": {
+            ctx.fillStyle = PALETTE.cloth;
+            roundedRect(ctx, px - r, py - r * 0.8, r * 2, r * 1.6, 2);
+            ctx.fill();
+            ctx.strokeStyle = PALETTE.lineStrong;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            break;
+          }
+          case "candle": {
+            ctx.fillStyle = PALETTE.wax;
+            roundedRect(ctx, px - r * 0.55, py - r, r * 1.1, r * 2, 2);
+            ctx.fill();
+            ctx.strokeStyle = PALETTE.lineStrong;
+            ctx.stroke();
+            if (st.lit) {
+              const flick = Math.sin(now / 140) * r * 0.12;
+              ctx.fillStyle = PALETTE.flame;
+              ctx.beginPath();
+              ctx.ellipse(px + flick, py - r * 1.5, r * 0.32, r * 0.6, 0, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.fillStyle = "rgba(255,255,255,0.65)";
+              ctx.beginPath();
+              ctx.ellipse(px + flick, py - r * 1.45, r * 0.12, r * 0.28, 0, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            break;
+          }
+          case "saucepan": {
+            ctx.fillStyle = PALETTE.panBody;
+            ctx.beginPath();
+            ctx.arc(px, py, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = PALETTE.lineStrong;
+            ctx.stroke();
+            ctx.strokeStyle = PALETTE.panHandle;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(px + r * 0.8, py - r * 0.5);
+            ctx.lineTo(px + r * 1.8, py - r * 1.1);
+            ctx.stroke();
+            if (st.hot) {
+              ctx.strokeStyle = "rgba(226,106,99,0.5)";
+              ctx.lineWidth = 1.5;
+              for (let s = 0; s < 2; s++) {
+                ctx.beginPath();
+                ctx.arc(px, py, r * (1.25 + s * 0.28), -2.6, -0.5);
+                ctx.stroke();
+              }
+            }
+            break;
+          }
+          case "teapot": {
+            ctx.fillStyle = PALETTE.brass;
+            ctx.beginPath();
+            ctx.arc(px, py, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = PALETTE.lineStrong;
+            ctx.stroke();
+            ctx.fillStyle = PALETTE.brass;
+            ctx.beginPath();
+            ctx.moveTo(px + r * 0.6, py - r * 0.3);
+            ctx.lineTo(px + r * 1.5, py - r * 0.8);
+            ctx.lineTo(px + r * 1.5, py - r * 0.2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = PALETTE.metal;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(px - r * 0.9, py, r * 0.7, -Math.PI / 2, Math.PI / 2);
+            ctx.stroke();
+            break;
+          }
+          default: {
+            ctx.fillStyle = PALETTE.neutral;
+            ctx.beginPath();
+            ctx.arc(px, py, r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = PALETTE.lineStrong;
+            ctx.stroke();
+          }
+        }
+
+        // caption above the object — numbered duplicates, state text, never color alone
         ctx.font = "10px var(--font-geist-mono), monospace";
-        let glyph = def.label;
-        if (def.safety === "hot" && st.hot) glyph = "pan HOT";
-        if (def.safety === "flame" && st.lit) glyph = "candle LIT";
-        if (def.safety === "sharp") glyph = "knife BLADE";
-        if (def.safety === "fragile") glyph = `${def.label} glass`;
-        let ly = py - 0.075 * scale;
-        while (drawnLabels.some((p) => Math.abs(p.x - px) < 52 && Math.abs(p.y - ly) < 11)) {
+        let caption = numbered;
+        if (def.label === "saucepan" && st.hot) caption = `${numbered} · HOT`;
+        if (def.label === "candle" && st.lit) caption = `${numbered} · LIT`;
+        if (def.label === "knife") caption = `${numbered} · BLADE`;
+        if (def.safety === "fragile") caption = `${numbered} · careful`;
+        let ly = py - r * 2.1;
+        while (drawnLabels.some((p) => Math.abs(p.x - px) < 58 && Math.abs(p.y - ly) < 11)) {
           ly -= 11;
         }
         drawnLabels.push({ x: px, y: ly });
         ctx.fillStyle = PALETTE.ink2;
         ctx.textAlign = "center";
-        ctx.fillText(glyph, px, ly);
+        ctx.fillText(caption, px, ly);
         if (st.heldBy) {
           ctx.strokeStyle = PALETTE.accent;
+          ctx.lineWidth = 1.5;
           ctx.beginPath();
-          ctx.arc(px, py, 0.065 * scale, 0, Math.PI * 2);
+          ctx.arc(px, py, r * 1.45, 0, Math.PI * 2);
           ctx.stroke();
         }
       }
 
-      // arms: anchor → elbow → gripper
+      // arms: base plate, two links, joints, gripper jaws
       for (const arm of ["left", "right"] as const) {
         const v = sim.arms[arm].visual;
         const anchor = ARM_ANCHOR[arm];
@@ -157,7 +331,6 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
         const ay = Y(anchor.y);
         const gx = X(v.pos.x);
         const gy = Y(v.pos.y);
-        // two-link IK: equal links, elbow perpendicular
         const mx = (ax + gx) / 2;
         const my = (ay + gy) / 2;
         const dx = gx - ax;
@@ -166,22 +339,36 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
         const h = Math.min(0.16 * scale, Math.max(0.05 * scale, Math.sqrt(Math.max(0, (0.24 * scale) ** 2 - (len / 2) ** 2))));
         const ex = mx + (-dy / len) * h;
         const ey = my + (dx / len) * h;
-        ctx.strokeStyle = arm === armRef.current && phaseRef.current !== "idle" ? PALETTE.accent : PALETTE.ink2;
-        ctx.lineWidth = 3;
+        const active = arm === armRef.current && phaseRef.current !== "idle";
+        // base plate
+        ctx.fillStyle = PALETTE.raised;
+        roundedRect(ctx, ax - 14, ay - 8, 28, 16, 3);
+        ctx.fill();
+        ctx.strokeStyle = PALETTE.lineStrong;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        // links
+        ctx.strokeStyle = active ? PALETTE.accent : PALETTE.ink2;
+        ctx.lineWidth = 4;
+        ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(ax, ay);
         ctx.lineTo(ex, ey);
         ctx.lineTo(gx, gy);
         ctx.stroke();
-        // anchor base
-        ctx.fillStyle = PALETTE.ink3;
+        ctx.lineCap = "butt";
+        // elbow + shoulder joints
+        ctx.fillStyle = active ? PALETTE.accent : PALETTE.ink3;
+        ctx.beginPath();
+        ctx.arc(ex, ey, 4, 0, Math.PI * 2);
+        ctx.fill();
         ctx.beginPath();
         ctx.arc(ax, ay, 6, 0, Math.PI * 2);
         ctx.fill();
         ctx.font = "9px var(--font-geist-mono), monospace";
         ctx.textAlign = "center";
         ctx.fillStyle = PALETTE.ink3;
-        ctx.fillText(arm === "left" ? "ARM L" : "ARM R", ax, ay + 18);
+        ctx.fillText(arm === "left" ? "ARM L" : "ARM R", ax, ay + 22);
         // gripper jaws
         const open = (1 - v.grip) * 6 + 2;
         ctx.strokeStyle = PALETTE.ink;
@@ -205,7 +392,6 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
       const ph = phaseRef.current;
       const ropeColor =
         ph === "snubbed" ? PALETTE.deny : ph === "held" ? PALETTE.warn : ph === "payout" ? PALETTE.ok : PALETTE.ink3;
-      // post
       ctx.fillStyle = PALETTE.raised;
       roundedRect(ctx, bx - 7, by - 22, 14, 30, 3);
       ctx.fill();

@@ -18,7 +18,8 @@
   /* Text tiers — exactly three */
   --text-primary: #e8ecf2;
   --text-secondary: #9aa6b6;
-  --text-muted: #667384;
+  /* bumped from #667384: micro labels must clear AA on the slate canvas */
+  --text-muted: #7e8b9c;
 
   /* Border scale — hairlines only; glow is reserved for the LIVE dot */
   --border-default: rgba(232, 236, 242, 0.1);
@@ -168,6 +169,20 @@ body {
 
 .live-dot {
   box-shadow: 0 0 0 3px var(--accent-subtle); /* the only glow on any surface */
+}
+
+/* the ALLOW payoff: one pulse when the gate releases the rope, then silence */
+@keyframes allow-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--status-success-bg);
+    border-color: var(--status-success);
+  }
+  100% {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+.allow-pulse {
+  animation: allow-pulse 900ms ease-out 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
