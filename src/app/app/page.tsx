@@ -252,7 +252,7 @@ export default function CockpitPage() {
   const micLabel =
     voiceState === "listening" ? "MIC LIVE" : voiceState === "connecting" ? "CONNECTING" : voiceState === "error" ? "MIC FAULT" : "MIC OFF";
 
-  const hearing = voiceState === "listening";
+  const hearing = voiceState === "listening" || voiceState === "connecting";
   const tileTone = hearing
     ? "border-warn bg-warn-bg text-warn"
     : !verdictView
