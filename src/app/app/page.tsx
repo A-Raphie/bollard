@@ -194,6 +194,10 @@ export default function CockpitPage() {
       onFinal: (text, conf) => {
         setPartial("");
         setFinals((prev) => [{ text, conf, ts: new Date().toLocaleTimeString() }, ...prev].slice(0, 30));
+        // push-to-talk: one press = one command; close the line so room noise
+        // never becomes a command and no audio streams while idle
+        void voiceRef.current?.stop();
+        setVoiceState("idle");
         void runCommand(text, "voice", conf);
       },
       onState: (s, detail) => {
@@ -250,7 +254,7 @@ export default function CockpitPage() {
             onClick={startVoice}
             className={`btn ${voiceState === "listening" ? "btn-ghost border-deny text-deny" : "btn-primary"}`}
           >
-            {voiceState === "listening" ? "Stop the microphone" : "Hold to speak · open mic"}
+            {voiceState === "listening" ? "Listening · press to stop" : "Say one command · open mic"}
           </button>
           <div className="flex items-center justify-between">
             <span className={`annunciator px-2 py-1 text-[11px] ${voiceState === "listening" ? "border-ok text-ok" : voiceState === "error" ? "border-deny text-deny" : "text-ink-2"}`}>

@@ -30,6 +30,7 @@ export class VoiceSession {
   private sink: GainNode | null = null;
   private state: VoiceState = "idle";
   private cbs: VoiceCallbacks = {};
+  private watchdog: ReturnType<typeof setTimeout> | null = null;
 
   private setState(s: VoiceState, detail?: string) {
     this.state = s;
@@ -108,6 +109,10 @@ export class VoiceSession {
       source.connect(this.processor);
       this.processor.connect(this.sink);
       this.sink.connect(this.ctx.destination);
+      // never leave a mic streaming unattended
+      this.watchdog = setTimeout(() => {
+        void this.stop();
+      }, 120_000);
     } catch (e) {
       await this.stop();
       this.setState("error", e instanceof Error ? e.message : "Could not open the microphone");
@@ -115,6 +120,10 @@ export class VoiceSession {
   }
 
   async stop(): Promise<void> {
+    if (this.watchdog) {
+      clearTimeout(this.watchdog);
+      this.watchdog = null;
+    }
     try {
       this.client.stopRecognition({ noTimeout: true });
     } catch {
