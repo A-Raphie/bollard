@@ -296,9 +296,13 @@ export default function CockpitPage() {
           </div>
           <button
             onClick={startVoice}
-            className={`btn ${voiceState === "listening" ? "btn-ghost border-deny text-deny mic-pulse" : "btn-primary"}`}
+            className={`btn ${voiceState === "listening" || voiceState === "connecting" ? "btn-ghost border-deny text-deny mic-pulse" : "btn-primary"}`}
           >
-            {voiceState === "listening" ? "Listening · press to stop" : "Say one command · open mic"}
+            {voiceState === "listening"
+              ? "Listening · press to stop"
+              : voiceState === "connecting"
+                ? "Connecting…"
+                : "Say one command · open mic"}
           </button>
           <div className="flex items-center justify-between">
             <span className={`annunciator px-2 py-1 text-[11px] ${voiceState === "listening" ? "border-ok text-ok" : voiceState === "error" ? "border-deny text-deny" : "text-ink-2"}`}>
