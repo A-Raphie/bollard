@@ -1,7 +1,7 @@
 // Deterministic intent grammar: transcript → Intent. No model in the loop — every
 // parse is reproducible from the words alone. That is the safety argument.
 
-import type { Destination, Intent } from "./types";
+import type { Destination, Intent, Relation } from "./types";
 import { resolveObject, type SceneState } from "./scene";
 
 const VERB_LEXICON: Array<{ verb: Intent["verb"]; words: string[] }> = [
@@ -89,7 +89,7 @@ function parseDestination(t: string): Destination | null {
 
   const rel = t.match(/\b(left|right|front|behind|beside|near)\b(?:\s+of)?\s+(?:the |a |an )?([a-z]+)/);
   if (rel) {
-    const relationMap: Record<string, Destination["relation"]> = {
+    const relationMap: Record<string, Relation> = {
       left: "left", right: "right", front: "front", behind: "behind", beside: "near", near: "near",
     };
     return { kind: "relative", relation: relationMap[rel[1]] ?? "near", anchorId: rel[2] }; // anchorId resolved later via resolveObject
