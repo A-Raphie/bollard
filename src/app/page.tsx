@@ -50,7 +50,7 @@ export default function Home() {
                 <span className="number font-mono text-sm text-action">01</span>
                 <h3 className="text-lg font-semibold">Hear</h3>
                 <p className="text-[15px] leading-7 text-ink-2">
-                  Speechmatics Realtime streams your mic at 16 kHz. Partials land in under 500 ms; the final transcript triggers judgment.
+                  Speechmatics Realtime streams your mic at 16 kHz. Partials arrive while you speak; the final transcript triggers judgment.
                 </p>
               </div>
               <div className="flex flex-col gap-2">
@@ -102,10 +102,11 @@ export default function Home() {
             </p>
             <div className="annunciator w-full max-w-2xl overflow-x-auto p-4 font-mono text-[11px] leading-6 text-ink-2">
               <p>#001 · ALLOW · “place a plate on the left placemat”</p>
-              <p className="text-ink-3">heard → parse → judge → act → scene@-0.42,0.08 · sha 205575a5…</p>
-              <p>#002 · EDGE_DROP · “throw the glass off the table”</p>
-              <p className="text-ink-3">Throwing the glass would shatter it. Denied. · sha 91fec2…</p>
+              <p className="text-ink-3">Policy pass: plate → the left placemat via left arm. · scene@-0.42,0.08 · sha 8e60687e…</p>
+              <p>#002 · HAZARD_HOT · “move the pan to the center”</p>
+              <p className="text-ink-3">The saucepan is hot (60°C+ on the hotplate). Manual handling only. · sha 1ecb33fe…</p>
             </div>
+            <p className="font-mono text-[11px] text-ink-3">real receipts from a live cockpit session · hit Verify chain in the app to re-hash them</p>
             <div className="flex items-center gap-4">
               <Link href="/app" className="btn btn-primary px-6">
                 Judge it yourself

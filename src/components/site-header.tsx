@@ -21,9 +21,13 @@ export function SiteHeader({ active }: { active: "instrument" | "cockpit" }) {
           </Link>
         </nav>
       </div>
-      <div className="annunciator flex items-center gap-2 px-3 py-1.5 text-[11px] text-ink-2">
+      <div className="annunciator hidden items-center gap-2 px-3 py-1.5 text-[11px] text-ink-2 sm:flex">
         <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-ok" aria-hidden />
         POLICY V1 · NO LLM IN LOOP · STT CLOUD
+      </div>
+      <div className="annunciator flex items-center gap-2 px-2.5 py-1.5 text-[10px] text-ink-2 sm:hidden">
+        <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-ok" aria-hidden />
+        POLICY V1
       </div>
     </header>
   );

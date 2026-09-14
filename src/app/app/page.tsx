@@ -365,7 +365,7 @@ export default function CockpitPage() {
                 : `BROKEN at serial ${chainCheck.brokenAt}`}
             </p>
           )}
-          <div className="min-h-0 flex-1 overflow-y-auto border-t border-line pt-2">
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden border-t border-line pt-2">
             {receipts.length === 0 && (
               <p className="text-[12px] text-ink-3">
                 Every command appends a hash-linked receipt: what was heard, what was allowed, what moved.

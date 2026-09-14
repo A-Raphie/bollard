@@ -113,7 +113,8 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
       ctx.textAlign = "center";
       ctx.fillText("TRAY", X(tray.x), Y(tray.y - 0.12));
 
-      // objects
+      // objects — labels de-collide: crowded clusters stack their captions
+      const drawnLabels: Array<{ x: number; y: number }> = [];
       for (const def of OBJECTS) {
         const st = sim.scene.objects[def.id];
         if (!st || !st.onTable) continue;
@@ -127,13 +128,19 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
         ctx.stroke();
         // state glyph above the object — label + state text, never color alone
         ctx.font = "10px var(--font-geist-mono), monospace";
-        ctx.fillStyle = PALETTE.ink2;
         let glyph = def.label;
         if (def.safety === "hot" && st.hot) glyph = "pan HOT";
         if (def.safety === "flame" && st.lit) glyph = "candle LIT";
         if (def.safety === "sharp") glyph = "knife BLADE";
         if (def.safety === "fragile") glyph = `${def.label} glass`;
-        ctx.fillText(glyph, px, py - 0.075 * scale);
+        let ly = py - 0.075 * scale;
+        while (drawnLabels.some((p) => Math.abs(p.x - px) < 52 && Math.abs(p.y - ly) < 11)) {
+          ly -= 11;
+        }
+        drawnLabels.push({ x: px, y: ly });
+        ctx.fillStyle = PALETTE.ink2;
+        ctx.textAlign = "center";
+        ctx.fillText(glyph, px, ly);
         if (st.heldBy) {
           ctx.strokeStyle = PALETTE.accent;
           ctx.beginPath();
