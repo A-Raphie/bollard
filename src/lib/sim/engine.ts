@@ -48,7 +48,7 @@ export class TableSim {
    */
   advance(): boolean {
     const now = performance.now();
-    const dt = Math.min(0.25, (now - this.lastTickAt) / 1000);
+    const dt = Math.min(1.5, (now - this.lastTickAt) / 1000);
     this.lastTickAt = now;
     return this.tick(dt);
   }

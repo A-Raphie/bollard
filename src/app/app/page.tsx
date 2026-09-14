@@ -114,7 +114,22 @@ export default function CockpitPage() {
   const runCommand = useCallback(
     async (heard: string, source: "voice" | "typed", confidence: number | null) => {
       const sim = simRef.current;
-      if (!sim || busyRef.current || sim.busy) return;
+      if (!sim || busyRef.current || sim.busy) {
+        if (sim && (busyRef.current || sim.busy)) {
+          setVerdictView({
+            heard,
+            source,
+            confidence,
+            allowed: false,
+            code: "BUSY",
+            reasons: ["The line is mid-action. Bollard refuses new commands until the arm settles."],
+            careNotes: [],
+            actionLine: null,
+          });
+          setTimeout(() => setVerdictView(null), 1600);
+        }
+        return;
+      }
       busyRef.current = true;
       setPhase("held");
       setVerdictView({
@@ -292,11 +307,17 @@ export default function CockpitPage() {
         <section className="flex min-h-0 flex-col gap-3">
           <div
             className={`annunciator flex items-center gap-4 px-4 py-3 ${
-              !verdictView ? "text-ink-2" : verdictView.code === "EVALUATING" ? "border-warn bg-warn-bg text-warn" : verdictView.allowed ? "border-ok bg-ok-bg text-ok" : "border-deny bg-deny-bg text-deny"
+              !verdictView
+                ? "text-ink-2"
+                : verdictView.code === "EVALUATING" || verdictView.code === "BUSY"
+                  ? "border-warn bg-warn-bg text-warn"
+                  : verdictView.allowed
+                    ? "border-ok bg-ok-bg text-ok"
+                    : "border-deny bg-deny-bg text-deny"
             }`}
           >
             <span className="text-xl font-bold tracking-[0.18em]">
-              {verdictView ? (verdictView.code === "EVALUATING" ? "HOLD" : verdictView.allowed ? "ALLOW" : "DENY") : "IDLE"}
+              {verdictView ? (verdictView.allowed ? "ALLOW" : verdictView.code === "EVALUATING" || verdictView.code === "BUSY" ? "HOLD" : "DENY") : "IDLE"}
             </span>
             <div className="min-w-0 flex-1 text-ink">
               <p className="truncate font-mono text-[13px]">{verdictView ? `“${verdictView.heard}”` : "Say a command to arm the line."}</p>
