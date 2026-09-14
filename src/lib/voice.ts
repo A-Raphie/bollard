@@ -56,6 +56,8 @@ export class VoiceSession {
   private lastSoundAt = 0;
   private silenceNotified = false;
   private frame = 0;
+  private audioBusy = false;
+  private stopping = false;
 
   private setState(s: VoiceState, detail?: string) {
     this.state = s;
@@ -121,27 +123,11 @@ export class VoiceSession {
       this.silenceNotified = false;
       this.frame = 0;
       this.processor.onaudioprocess = (e) => {
-        if (this.state !== "listening") return;
-        const raw = e.inputBuffer.getChannelData(0);
-        let sum = 0;
-        for (let i = 0; i < raw.length; i++) sum += raw[i] * raw[i];
-        const rms = Math.sqrt(sum / raw.length);
-        const now = performance.now();
-        if (rms > SILENCE_RMS) {
-          this.lastSoundAt = now;
-          this.silenceNotified = false;
-        } else if (!this.silenceNotified && now - this.lastSoundAt > SILENCE_NOTIFY_MS) {
-          this.silenceNotified = true;
-          this.cbs.onSilence?.();
-        }
-        if (now - this.lastSoundAt > SILENCE_STOP_MS) {
-          void this.stop();
-          this.setState("error", "No audio is reaching the microphone. Check the input device (some embedded browsers hand out a silent mic).");
-          return;
-        }
-        if (this.frame++ % 2 === 0) this.cbs.onLevel?.(rms);
-        const pcm = floatToS16(resampleTo16k(raw, this.ctx?.sampleRate ?? 48000));
-        this.client.sendAudio(pcm);
+        if (this.state !== "listening" || this.audioBusy) return;
+        this.audioBusy = true;
+        void this.handleAudio(e).finally(() => {
+          this.audioBusy = false;
+        });
       };
       this.sink = this.ctx.createGain();
       this.sink.gain.value = 0; // silent sink: ScriptProcessor needs a destination to pump
@@ -202,7 +188,34 @@ export class VoiceSession {
     }
   }
 
+  private async handleAudio(e: AudioProcessingEvent): Promise<void> {
+    const raw = e.inputBuffer.getChannelData(0);
+    let sum = 0;
+    for (let i = 0; i < raw.length; i++) sum += raw[i] * raw[i];
+    const rms = Math.sqrt(sum / raw.length);
+    const now = performance.now();
+    if (rms > SILENCE_RMS) {
+      this.lastSoundAt = now;
+      this.silenceNotified = false;
+    } else if (!this.silenceNotified && now - this.lastSoundAt > SILENCE_NOTIFY_MS) {
+      this.silenceNotified = true;
+      this.cbs.onSilence?.();
+    }
+    if (now - this.lastSoundAt > SILENCE_STOP_MS) {
+      const message =
+        "No audio is reaching the microphone. Check the input device (some embedded browsers hand out a silent mic).";
+      await this.stop();
+      this.setState("error", message); // set after stop(), which ends in idle
+      return;
+    }
+    if (this.frame++ % 2 === 0) this.cbs.onLevel?.(rms);
+    const pcm = floatToS16(resampleTo16k(raw, this.ctx?.sampleRate ?? 48000));
+    this.client.sendAudio(pcm);
+  }
+
   async stop(): Promise<void> {
+    if (this.stopping) return;
+    this.stopping = true;
     if (this.watchdog) {
       clearTimeout(this.watchdog);
       this.watchdog = null;
@@ -220,6 +233,7 @@ export class VoiceSession {
     this.sink = null;
     this.stream = null;
     this.ctx = null;
+    this.stopping = false;
     this.setState("idle");
   }
 }
