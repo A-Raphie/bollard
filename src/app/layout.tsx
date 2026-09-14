@@ -14,13 +14,13 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://bollard-five.vercel.app"),
-  title: "Bollard — the gate between hearing and hands",
+  title: "Bollard · the gate between hearing and hands",
   description:
-    "Every spoken command to a robot arm is transcribed by Speechmatics, checked against a policy, and only then executed — with a tamper-evident receipt of what was heard, allowed, and moved.",
+    "Every spoken command to a robot arm is transcribed by Speechmatics, checked against a policy, and only then executed. Every command leaves a tamper-evident receipt of what was heard, allowed, and moved.",
   openGraph: {
-    title: "Bollard — the gate between hearing and hands",
+    title: "Bollard · the gate between hearing and hands",
     description:
-      "Speechmatics transcribes the command. A deterministic policy judges it. Only then does the arm move — and every command leaves a tamper-evident receipt.",
+      "Speechmatics transcribes the command. A deterministic policy judges it. Only then does the arm move, and every command leaves a tamper-evident receipt.",
     url: "/",
     siteName: "Bollard",
     images: [{ url: "/og.png", width: 1200, height: 630 }],
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Bollard — the gate between hearing and hands",
+    title: "Bollard · the gate between hearing and hands",
     description:
       "Speechmatics transcribes the command. Policy judges it. Then the arm moves. Every command leaves a receipt.",
     images: ["/og.png"],

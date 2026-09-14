@@ -66,7 +66,7 @@ export function judge(scene: SceneState, arms: Record<"left" | "right", ArmRunti
     return deny("HAZARD_HOT", `The ${label} is hot (60°C+ on the hotplate). Manual handling only.`);
   }
   if (obj?.safety === "flame" && st.lit) {
-    return deny("FLAME_LIT", `The ${label} is lit. Open flame — no robot handling until it's out.`);
+    return deny("FLAME_LIT", `The ${label} is lit. Open flame: no robot handling until it's out.`);
   }
 
   // gripper occupancy
@@ -103,7 +103,7 @@ export function judge(scene: SceneState, arms: Record<"left" | "right", ArmRunti
     const anchorLabel = OBJECTS.find((o) => o.id === anchorId)?.label ?? anchorId;
     destPoint = { x: a.x + ox, y: a.y + oy, label: `beside the ${anchorLabel}` };
   } else if (intent.verb === "place" || intent.verb === "remove" || intent.verb === "slide") {
-    return deny("UNKNOWN_VERB", `Where should the ${label} go? Add a destination — “to the left placemat”, “next to the bowl”, “to the tray”.`, arm);
+    return deny("UNKNOWN_VERB", `Where should the ${label} go? Add a destination: “to the left placemat”, “next to the bowl”, “to the tray”.`, arm);
   }
 
   if (destPoint) {
@@ -118,7 +118,7 @@ export function judge(scene: SceneState, arms: Record<"left" | "right", ArmRunti
       const other = arm === "left" ? "right" : "left";
       const otherOk = distance(ARM_ANCHOR[other].x, ARM_ANCHOR[other].y, destPoint.x, destPoint.y) <= ARM_REACH;
       if (!otherOk) return deny("OUT_OF_REACH", `The destination is outside both arms' reach.`, arm);
-      return deny("OUT_OF_REACH", `The destination is out of the ${arm} arm's reach — the ${other} arm could get there; name it explicitly.`, arm);
+      return deny("OUT_OF_REACH", `The destination is out of the ${arm} arm's reach. The ${other} arm could get there; name it explicitly.`, arm);
     }
     const occupant = Object.entries(scene.objects).find(
       ([id, s]) => id !== objId && s.onTable && !s.heldBy && distance(s.x, s.y, destPoint.x, destPoint.y) < 0.07,
@@ -130,8 +130,8 @@ export function judge(scene: SceneState, arms: Record<"left" | "right", ArmRunti
 
   // care notes, not denials
   const careNotes: string[] = [];
-  if (obj?.safety === "fragile") careNotes.push(`${label} is glass — slow approach, soft grip.`);
-  if (obj?.safety === "sharp") careNotes.push(`${label} is a blade — point travels downrange, low carry.`);
+  if (obj?.safety === "fragile") careNotes.push(`${label} is glass: slow approach, soft grip.`);
+  if (obj?.safety === "sharp") careNotes.push(`${label} is a blade: point travels downrange, low carry.`);
 
   const action = destPoint
     ? `${arm} arm ${intent.verb === "remove" ? "removed" : intent.verb === "slide" ? "slid" : "placed"} the ${label} to ${destPoint.label}`
