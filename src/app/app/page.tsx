@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { TableCanvas, type CanvasPulse, type RopePhase } from "@/components/table-canvas";
 import { TableSim } from "@/lib/sim/engine";
@@ -54,7 +54,16 @@ export default function CockpitPage() {
   const [level, setLevel] = useState(0);
   const [levels, setLevels] = useState<number[]>(() => Array(12).fill(0));
   const [silenceHint, setSilenceHint] = useState(false);
+  const [recSeconds, setRecSeconds] = useState(0);
   const [allowPulse, setAllowPulse] = useState(false);
+
+  // the recording clock: proof on sight that the line is live
+  useEffect(() => {
+    if (voiceState !== "listening") return;
+    setRecSeconds(0);
+    const iv = setInterval(() => setRecSeconds((s) => s + 1), 1000);
+    return () => clearInterval(iv);
+  }, [voiceState]);
 
   // boot the sim once
   useEffect(() => {
@@ -276,13 +285,21 @@ export default function CockpitPage() {
     : verdictView
       ? `“${verdictView.heard}”`
       : "Say a command to arm the line.";
-  const tileSub = hearing
-    ? silenceHint
-      ? "No audio is reaching the microphone. Check the input device."
-      : "Live transcript lands here as you speak · press the button to stop"
-    : verdictView
-      ? (verdictView.actionLine ?? verdictView.reasons.join(" ")) + (verdictView.careNotes.length > 0 ? ` · ${verdictView.careNotes.join(" · ")}` : "")
-      : "policy v1";
+  const tileSub: ReactNode = hearing ? (
+    <span className="flex flex-wrap items-center gap-2">
+      <span className="mic-pulse inline-block h-2 w-2 rounded-full bg-deny" aria-hidden />
+      <span className="number font-mono text-deny">
+        REC {String(Math.floor(recSeconds / 60)).padStart(2, "0")}:{String(recSeconds % 60).padStart(2, "0")}
+      </span>
+      <span>
+        {silenceHint
+          ? "No audio is reaching the microphone. Check the input device."
+          : "Live transcript lands here as you speak · press the button to stop"}
+      </span>
+    </span>
+  ) : verdictView
+    ? (verdictView.actionLine ?? verdictView.reasons.join(" ")) + (verdictView.careNotes.length > 0 ? ` · ${verdictView.careNotes.join(" · ")}` : "")
+    : "policy v1";
 
   return (
     <div className="flex min-h-screen flex-col">

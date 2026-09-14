@@ -58,6 +58,7 @@ export class VoiceSession {
   private frame = 0;
   private audioBusy = false;
   private stopping = false;
+  private captureProbe: ReturnType<typeof setTimeout> | null = null;
 
   private setState(s: VoiceState, detail?: string) {
     this.state = s;
@@ -89,6 +90,14 @@ export class VoiceSession {
       const meta = "metadata" in d ? (d.metadata as { transcript?: string; confidence?: number } | undefined) : undefined;
       if (d.message === "RecognitionStarted") {
         this.setState("listening");
+        // the pipeline must produce at least one audio callback; if it never
+        // does, the context is suspended or the device delivers nothing
+        if (this.captureProbe) clearTimeout(this.captureProbe);
+        this.captureProbe = setTimeout(() => {
+          if (this.state !== "listening" || this.frame > 0) return;
+          const message = "Audio capture is not starting — the audio context is suspended or the microphone delivers no samples.";
+          void this.stop().then(() => this.setState("error", message));
+        }, 3500);
       } else if (d.message === "AddPartialTranscript") {
         if (meta?.transcript) this.cbs.onPartial?.(meta.transcript);
       } else if (d.message === "AddTranscript") {
@@ -117,6 +126,13 @@ export class VoiceSession {
       // native device rate; downsample to 16 kHz in JS (forcing the context rate
       // misbehaves on Safari and some Chromium builds)
       this.ctx = new AudioContext();
+      if (this.ctx.state === "suspended") {
+        try {
+          await this.ctx.resume();
+        } catch {
+          // surfaced by the capture probe below
+        }
+      }
       const source = this.ctx.createMediaStreamSource(this.stream);
       this.processor = this.ctx.createScriptProcessor(4096, 1, 1);
       this.lastSoundAt = performance.now();
@@ -219,6 +235,10 @@ export class VoiceSession {
     if (this.watchdog) {
       clearTimeout(this.watchdog);
       this.watchdog = null;
+    }
+    if (this.captureProbe) {
+      clearTimeout(this.captureProbe);
+      this.captureProbe = null;
     }
     try {
       this.client.stopRecognition({ noTimeout: true });
