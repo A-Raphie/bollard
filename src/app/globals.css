@@ -1,26 +1,180 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+  Bollard — Mode Q (avionics annunciator), deep slate, always-dark.
+  The cockpit never ships a light peer in v1: annunciator semantics (label + state
+  text, never color alone) are the product law, and Q is inherently a night surface.
+  Single source of truth for color; components carry zero raw hex.
+  The canvas mirror lives in lib/palette.ts (canvas can't read CSS vars) — keep in sync.
+*/
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+:root {
+  /* Elevation ladder — canvas < surface < raised < overlay */
+  --bg-canvas: #0c0f14;
+  --bg-surface: #12161e;
+  --bg-raised: #171d27;
+  --bg-overlay: #1d2431;
+
+  /* Text tiers — exactly three */
+  --text-primary: #e8ecf2;
+  --text-secondary: #9aa6b6;
+  --text-muted: #667384;
+
+  /* Border scale — hairlines only; glow is reserved for the LIVE dot */
+  --border-default: rgba(232, 236, 242, 0.1);
+  --border-strong: rgba(232, 236, 242, 0.22);
+
+  /* Accent triple — ECAM cyan: the color of selectable actions */
+  --accent: #53d5e8;
+  --accent-subtle: rgba(83, 213, 232, 0.12);
+  --accent-foreground: #062228;
+
+  /* Status scale — every state also carries its text label, never color alone */
+  --status-success: #4cd17e;
+  --status-pending: #e5b144;
+  --status-error: #e26a63;
+  --status-neutral: #8b98a9;
+  --status-success-bg: rgba(76, 209, 126, 0.12);
+  --status-pending-bg: rgba(229, 177, 68, 0.12);
+  --status-error-bg: rgba(226, 106, 99, 0.12);
+  --status-neutral-bg: rgba(139, 152, 169, 0.1);
+
+  /* Radius — near-sharp: avionics tiles read as instruments, not cards */
+  --radius-input: 6px;
+  --radius-card: 10px;
+  --radius-pill: 999px;
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@theme inline {
+  --color-canvas: var(--bg-canvas);
+  --color-surface: var(--bg-surface);
+  --color-raised: var(--bg-raised);
+  --color-overlay: var(--bg-overlay);
+  --color-ink: var(--text-primary);
+  --color-ink-2: var(--text-secondary);
+  --color-ink-3: var(--text-muted);
+  --color-line: var(--border-default);
+  --color-line-strong: var(--border-strong);
+  --color-action: var(--accent);
+  --color-action-subtle: var(--accent-subtle);
+  --color-action-ink: var(--accent-foreground);
+  --color-ok: var(--status-success);
+  --color-warn: var(--status-pending);
+  --color-deny: var(--status-error);
+  --color-neutral-ink: var(--status-neutral);
+  --color-ok-bg: var(--status-success-bg);
+  --color-warn-bg: var(--status-pending-bg);
+  --color-deny-bg: var(--status-error-bg);
+  --color-neutral-bg: var(--status-neutral-bg);
+  --radius-input: var(--radius-input);
+  --radius-card: var(--radius-card);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* ---- class layer ---- */
+
+.panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+}
+
+/* annunciator tile: label + state text, state color is the secondary signal */
+.annunciator {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-input);
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+.micro {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+.number {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "zero";
+}
+
+/* pitch-ladder texture for section bands — geometry, not decoration */
+.reticle {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--border-default) 0 1px,
+    transparent 1px 14px
+  );
+}
+
+.btn {
+  min-height: 44px; /* Fitts: primary control target */
+  border-radius: var(--radius-input);
+  font-weight: 600;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 80ms ease;
+}
+.btn:active {
+  transform: scale(0.96);
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.btn-primary:hover {
+  background: color-mix(in oklab, var(--accent) 86%, white);
+}
+.btn-ghost {
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  background: transparent;
+}
+.btn-ghost:hover {
+  background: var(--accent-subtle);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.input {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-input);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  min-height: 44px;
+}
+.input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.live-dot {
+  box-shadow: 0 0 0 3px var(--accent-subtle); /* the only glow on any surface */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

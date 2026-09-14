@@ -23,5 +23,5 @@ Judged surface: lablab submission needs repo + live URL + video + slides + cover
 
 ## Map
 - src/app/page.tsx — front door. src/app/app/ — cockpit (mic, transcript, policy verdict, canvas sim, receipts).
-- src/app/api/token/route.ts — JWT mint. lib/ — intent grammar, policy engine, receipts (hash chain), sim engine (pure TS, no React).
+- src/app/api/token/route.ts — JWT mint. src/lib/ — intent grammar, policy engine, receipts (hash chain), sim engine (pure TS, no React).
 - Docs that own decisions: docs/PRD.md (scope + cuts), ORCHESTRATOR.md (skill ledger + stage).
