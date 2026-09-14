@@ -11,7 +11,12 @@ export interface VoiceCallbacks {
   onFinal?: (text: string, confidence: number | null) => void;
   onState?: (state: VoiceState, detail?: string) => void;
   onLevel?: (rms: number) => void;
+  onSilence?: () => void; // fired once when 5s pass with no audible input
 }
+
+const SILENCE_RMS = 0.01;    // below this the input counts as silent
+const SILENCE_NOTIFY_MS = 5000;
+const SILENCE_STOP_MS = 15000;
 
 function floatToS16(input: Float32Array): ArrayBuffer {
   const out = new DataView(new ArrayBuffer(input.length * 2));
@@ -22,13 +27,20 @@ function floatToS16(input: Float32Array): ArrayBuffer {
   return out.buffer;
 }
 
-/** Decode any browser-supported audio file and resample to 16 kHz mono s16. */
-async function to16kS16(file: ArrayBuffer): Promise<ArrayBuffer> {
-  const ctx = new AudioContext({ sampleRate: 16000 });
-  const decoded = await ctx.decodeAudioData(file);
-  const ch = decoded.getChannelData(0);
-  const out = floatToS16(ch);
-  await ctx.close();
+/** Linear-interpolation resample of a mono float buffer to 16 kHz. */
+function resampleTo16k(input: Float32Array, inRate: number): Float32Array {
+  if (inRate === 16000) return input;
+  const ratio = inRate / 16000;
+  const outLen = Math.max(1, Math.floor(input.length / ratio));
+  const out = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const pos = i * ratio;
+    const i0 = Math.floor(pos);
+    const frac = pos - i0;
+    const s0 = input[i0] ?? 0;
+    const s1 = input[i0 + 1] ?? s0;
+    out[i] = s0 + (s1 - s0) * frac;
+  }
   return out;
 }
 
@@ -41,6 +53,9 @@ export class VoiceSession {
   private state: VoiceState = "idle";
   private cbs: VoiceCallbacks = {};
   private watchdog: ReturnType<typeof setTimeout> | null = null;
+  private lastSoundAt = 0;
+  private silenceNotified = false;
+  private frame = 0;
 
   private setState(s: VoiceState, detail?: string) {
     this.state = s;
@@ -97,22 +112,36 @@ export class VoiceSession {
       this.stream = await navigator.mediaDevices.getUserMedia({
         audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
-      // Context at 16 kHz makes the browser resample the mic feed for us.
-      this.ctx = new AudioContext({ sampleRate: 16000 });
+      // native device rate; downsample to 16 kHz in JS (forcing the context rate
+      // misbehaves on Safari and some Chromium builds)
+      this.ctx = new AudioContext();
       const source = this.ctx.createMediaStreamSource(this.stream);
       this.processor = this.ctx.createScriptProcessor(4096, 1, 1);
-      let frame = 0;
+      this.lastSoundAt = performance.now();
+      this.silenceNotified = false;
+      this.frame = 0;
       this.processor.onaudioprocess = (e) => {
-        const samples = e.inputBuffer.getChannelData(0);
-        if (this.state === "listening") {
-          const pcm = floatToS16(samples);
-          this.client.sendAudio(pcm);
-          if (frame++ % 8 === 0) {
-            let sum = 0;
-            for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
-            this.cbs.onLevel?.(Math.sqrt(sum / samples.length));
-          }
+        if (this.state !== "listening") return;
+        const raw = e.inputBuffer.getChannelData(0);
+        let sum = 0;
+        for (let i = 0; i < raw.length; i++) sum += raw[i] * raw[i];
+        const rms = Math.sqrt(sum / raw.length);
+        const now = performance.now();
+        if (rms > SILENCE_RMS) {
+          this.lastSoundAt = now;
+          this.silenceNotified = false;
+        } else if (!this.silenceNotified && now - this.lastSoundAt > SILENCE_NOTIFY_MS) {
+          this.silenceNotified = true;
+          this.cbs.onSilence?.();
         }
+        if (now - this.lastSoundAt > SILENCE_STOP_MS) {
+          void this.stop();
+          this.setState("error", "No audio is reaching the microphone. Check the input device (some embedded browsers hand out a silent mic).");
+          return;
+        }
+        if (this.frame++ % 2 === 0) this.cbs.onLevel?.(rms);
+        const pcm = floatToS16(resampleTo16k(raw, this.ctx?.sampleRate ?? 48000));
+        this.client.sendAudio(pcm);
       };
       this.sink = this.ctx.createGain();
       this.sink.gain.value = 0; // silent sink: ScriptProcessor needs a destination to pump
@@ -193,4 +222,14 @@ export class VoiceSession {
     this.ctx = null;
     this.setState("idle");
   }
+}
+
+/** Decode any browser-supported audio file and resample to 16 kHz mono s16. */
+async function to16kS16(file: ArrayBuffer): Promise<ArrayBuffer> {
+  const ctx = new AudioContext({ sampleRate: 16000 });
+  const decoded = await ctx.decodeAudioData(file);
+  const ch = decoded.getChannelData(0);
+  const out = floatToS16(ch);
+  await ctx.close();
+  return out;
 }

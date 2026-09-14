@@ -52,6 +52,8 @@ export default function CockpitPage() {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [voiceDetail, setVoiceDetail] = useState<string | undefined>();
   const [level, setLevel] = useState(0);
+  const [levels, setLevels] = useState<number[]>(() => Array(12).fill(0));
+  const [silenceHint, setSilenceHint] = useState(false);
   const [allowPulse, setAllowPulse] = useState(false);
 
   // boot the sim once
@@ -196,6 +198,7 @@ export default function CockpitPage() {
       onPartial: setPartial,
       onFinal: (text, conf) => {
         setPartial("");
+        setSilenceHint(false);
         setFinals((prev) => [{ text, conf, ts: new Date().toLocaleTimeString() }, ...prev].slice(0, 30));
         // push-to-talk: one press = one command; close the line so room noise
         // never becomes a command and no audio streams while idle
@@ -206,8 +209,14 @@ export default function CockpitPage() {
       onState: (s, detail) => {
         setVoiceState(s);
         setVoiceDetail(detail);
+        if (s !== "listening") setSilenceHint(false);
       },
-      onLevel: setLevel,
+      onLevel: (rms) => {
+        setLevel(rms);
+        setLevels((prev) => [...prev.slice(1), rms]);
+        if (rms > 0.02) setSilenceHint(false);
+      },
+      onSilence: () => setSilenceHint(true),
     });
   }, [runCommand]);
 
@@ -243,6 +252,38 @@ export default function CockpitPage() {
   const micLabel =
     voiceState === "listening" ? "MIC LIVE" : voiceState === "connecting" ? "CONNECTING" : voiceState === "error" ? "MIC FAULT" : "MIC OFF";
 
+  const hearing = voiceState === "listening";
+  const tileTone = hearing
+    ? "border-warn bg-warn-bg text-warn"
+    : !verdictView
+      ? "text-ink-2"
+      : verdictView.code === "EVALUATING" || verdictView.code === "BUSY"
+        ? "border-warn bg-warn-bg text-warn"
+        : verdictView.allowed
+          ? "border-ok bg-ok-bg text-ok"
+          : "border-deny bg-deny-bg text-deny";
+  const tileWord = hearing
+    ? "HEARING"
+    : verdictView
+      ? verdictView.allowed
+        ? "ALLOW"
+        : verdictView.code === "EVALUATING" || verdictView.code === "BUSY"
+          ? "HOLD"
+          : "DENY"
+      : "IDLE";
+  const tileMain = hearing
+    ? partial || "Speak a command…"
+    : verdictView
+      ? `“${verdictView.heard}”`
+      : "Say a command to arm the line.";
+  const tileSub = hearing
+    ? silenceHint
+      ? "No audio is reaching the microphone. Check the input device."
+      : "Live transcript lands here as you speak · press the button to stop"
+    : verdictView
+      ? (verdictView.actionLine ?? verdictView.reasons.join(" ")) + (verdictView.careNotes.length > 0 ? ` · ${verdictView.careNotes.join(" · ")}` : "")
+      : "policy v1";
+
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader active="cockpit" />
@@ -255,7 +296,7 @@ export default function CockpitPage() {
           </div>
           <button
             onClick={startVoice}
-            className={`btn ${voiceState === "listening" ? "btn-ghost border-deny text-deny" : "btn-primary"}`}
+            className={`btn ${voiceState === "listening" ? "btn-ghost border-deny text-deny mic-pulse" : "btn-primary"}`}
           >
             {voiceState === "listening" ? "Listening · press to stop" : "Say one command · open mic"}
           </button>
@@ -267,9 +308,20 @@ export default function CockpitPage() {
               {finals[0]?.conf != null ? `conf ${(finals[0].conf * 100).toFixed(0)}%` : voiceState === "listening" ? "listening" : ""}
             </span>
           </div>
-          <div className="h-1 w-full overflow-hidden rounded-full bg-raised" aria-hidden>
-            <div className="h-full bg-action transition-[width] duration-100" style={{ width: `${Math.min(100, level * 140)}%` }} />
+          <div className="flex h-6 items-end gap-1" aria-hidden>
+            {levels.map((lv, i) => (
+              <div
+                key={i}
+                className={`w-full rounded-sm transition-[height] duration-100 ${voiceState === "listening" ? "bg-action" : "bg-raised"}`}
+                style={{ height: `${Math.max(10, Math.min(100, lv * 320))}%` }}
+              />
+            ))}
           </div>
+          {silenceHint && voiceState === "listening" && (
+            <p className="rounded-input border border-warn bg-warn-bg p-2 font-mono text-[11px] text-warn">
+              No audio is reaching the microphone. Check the input device.
+            </p>
+          )}
           {voiceState === "error" && (
             <p className="rounded-input border border-deny bg-deny-bg p-2 font-mono text-[11px] text-deny">
               {voiceDetail ?? "Microphone unavailable"}
@@ -324,31 +376,14 @@ export default function CockpitPage() {
 
         {/* VERDICT + TABLE */}
         <section className="flex min-h-0 flex-col gap-3">
-          <div
-            className={`annunciator flex items-center gap-4 px-4 py-3 ${allowPulse ? "allow-pulse" : ""} ${
-              !verdictView
-                ? "text-ink-2"
-                : verdictView.code === "EVALUATING" || verdictView.code === "BUSY"
-                  ? "border-warn bg-warn-bg text-warn"
-                  : verdictView.allowed
-                    ? "border-ok bg-ok-bg text-ok"
-                    : "border-deny bg-deny-bg text-deny"
-            }`}
-          >
-            <span className="text-xl font-bold tracking-[0.18em]">
-              {verdictView ? (verdictView.allowed ? "ALLOW" : verdictView.code === "EVALUATING" || verdictView.code === "BUSY" ? "HOLD" : "DENY") : "IDLE"}
-            </span>
-            <div className="min-w-0 flex-1 text-ink">
-              <p className="line-clamp-2 font-mono text-[13px] md:truncate">{verdictView ? `“${verdictView.heard}”` : "Say a command to arm the line."}</p>
-              {verdictView && (
-                <p className="truncate text-[12px] text-ink-2">
-                  {verdictView.actionLine ?? verdictView.reasons.join(" ")}
-                  {verdictView.careNotes.length > 0 && ` · ${verdictView.careNotes.join(" · ")}`}
-                </p>
-              )}
+          <div className={`annunciator flex items-center gap-4 px-4 py-3 ${allowPulse ? “allow-pulse” : “”} ${tileTone}`}>
+            <span className=”text-xl font-bold tracking-[0.18em]”>{tileWord}</span>
+            <div className=”min-w-0 flex-1 text-ink”>
+              <p className=”line-clamp-2 font-mono text-[13px] md:truncate”>{tileMain}</p>
+              <p className=”line-clamp-2 text-[12px] text-ink-2”>{tileSub}</p>
             </div>
-            <span className="micro hidden md:block">
-              {verdictView?.source === "typed" ? "SRC 2" : verdictView ? "SRC 1" : "POLICY V1"}
+            <span className=”micro hidden md:block”>
+              {hearing ? “SRC 1” : verdictView?.source === “typed” ? “SRC 2” : verdictView ? “SRC 1” : “POLICY V1”}
             </span>
           </div>
           <div className="panel min-h-0 flex-1 overflow-hidden p-2">
