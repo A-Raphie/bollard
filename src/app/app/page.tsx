@@ -261,7 +261,7 @@ export default function CockpitPage() {
               {micLabel}
             </span>
             <span className="number font-mono text-[11px] text-ink-3">
-              {finals[0]?.conf != null ? `conf ${(finals[0].conf * 100).toFixed(0)}%` : "conf —"}
+              {finals[0]?.conf != null ? `conf ${(finals[0].conf * 100).toFixed(0)}%` : voiceState === "listening" ? "listening" : ""}
             </span>
           </div>
           <div className="h-1 w-full overflow-hidden rounded-full bg-raised" aria-hidden>
@@ -301,9 +301,21 @@ export default function CockpitPage() {
                 Send
               </button>
             </div>
-            <p className="mt-2 text-[11px] text-ink-3">
-              Same pipeline, no audio. Try “throw the glass off the table” or “move the pan to the center”.
-            </p>
+            <p className="mt-2 text-[11px] text-ink-3">Same pipeline, no audio. One press of these runs it:</p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {["place a plate on the left placemat", "throw the glass off the table", "move the pan to the center"].map((c) => (
+                <button
+                  key={c}
+                  className="annunciator px-2 py-1 text-[10px] text-ink-2 transition-colors hover:border-action hover:text-action"
+                  onClick={() => {
+                    if (busyRef.current || simRef.current?.busy) return;
+                    void runCommand(c, "typed", null);
+                  }}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -324,7 +336,7 @@ export default function CockpitPage() {
               {verdictView ? (verdictView.allowed ? "ALLOW" : verdictView.code === "EVALUATING" || verdictView.code === "BUSY" ? "HOLD" : "DENY") : "IDLE"}
             </span>
             <div className="min-w-0 flex-1 text-ink">
-              <p className="truncate font-mono text-[13px]">{verdictView ? `“${verdictView.heard}”` : "Say a command to arm the line."}</p>
+              <p className="line-clamp-2 font-mono text-[13px] md:truncate">{verdictView ? `“${verdictView.heard}”` : "Say a command to arm the line."}</p>
               {verdictView && (
                 <p className="truncate text-[12px] text-ink-2">
                   {verdictView.actionLine ?? verdictView.reasons.join(" ")}
