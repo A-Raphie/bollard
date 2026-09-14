@@ -57,6 +57,7 @@ export default function CockpitPage() {
   useEffect(() => {
     if (!simRef.current) simRef.current = new TableSim(initialScene());
     const sim = simRef.current;
+    if (import.meta.env.DEV) (window as unknown as { __bollardSim?: TableSim }).__bollardSim = sim;
     sim.onSettled = () => {
       const p = pendingRef.current;
       pendingRef.current = null;
@@ -90,6 +91,15 @@ export default function CockpitPage() {
     };
   }, []);
 
+  // catch-up driver: occluded/background windows pause rAF, so a low-frequency
+  // interval keeps the sim settling (and receipts appending) when nobody watches
+  useEffect(() => {
+    const iv = setInterval(() => {
+      simRef.current?.advance();
+    }, 300);
+    return () => clearInterval(iv);
+  }, []);
+
   const appendAndSave = useCallback(async (input: ReceiptInput) => {
     const receipt = await appendReceipt(chainRef.current, input);
     chainRef.current = [...chainRef.current, receipt];
@@ -104,7 +114,7 @@ export default function CockpitPage() {
   const runCommand = useCallback(
     async (heard: string, source: "voice" | "typed", confidence: number | null) => {
       const sim = simRef.current;
-      if (!sim || busyRef.current) return;
+      if (!sim || busyRef.current || sim.busy) return;
       busyRef.current = true;
       setPhase("held");
       setVerdictView({

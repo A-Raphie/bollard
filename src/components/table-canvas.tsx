@@ -41,14 +41,26 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
     let last = performance.now();
 
     const draw = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
+      try {
+        runFrame(now);
+      } catch (e) {
+        (window as unknown as { __bollardDrawError?: string }).__bollardDrawError = String(e);
+        return; // loop stops; the error surfaces on the debug handle
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    if (import.meta.env.DEV) (window as unknown as { __bollardFrames?: number }).__bollardFrames = 0;
+    const runFrame = (now: number) => {
+      if (import.meta.env.DEV) {
+        const w = window as unknown as { __bollardFrames?: number };
+        if (typeof w.__bollardFrames === "number") w.__bollardFrames += 1;
+      }
       const sim = simRef.current;
       if (!sim) {
         raf = requestAnimationFrame(draw);
         return;
       }
-      sim.tick(dt);
+      sim.advance();
 
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
@@ -234,8 +246,6 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
         ctx.arc(X(p.x), Y(p.y), 0.09 * scale, 0, Math.PI * 2);
         ctx.stroke();
       }
-
-      raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);

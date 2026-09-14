@@ -38,7 +38,20 @@ export class TableSim {
   private plan: PlanStep[] = [];
   private idx = 0;
   private t = 0;
+  private lastTickAt = performance.now();
   onSettled: (() => void) | null = null; // fired when the plan finishes
+
+  /**
+   * Advance by wall-clock time. Called from rAF (smooth when visible) AND from a
+   * low-frequency catch-up interval (occluded/background windows pause rAF, and
+   * commands must still settle into receipts when nobody is watching).
+   */
+  advance(): boolean {
+    const now = performance.now();
+    const dt = Math.min(0.25, (now - this.lastTickAt) / 1000);
+    this.lastTickAt = now;
+    return this.tick(dt);
+  }
 
   constructor(scene?: SceneState) {
     this.scene = scene ? cloneScene(scene) : { objects: {} };
