@@ -98,19 +98,29 @@ export class VoiceSession {
       this.transcriptTimer = null;
     }
 
-    // 1. Acquire mic with strict 7s timeout
+    // 1. Acquire mic (try unconstrained audio: true first to avoid CoreAudio VoiceProcessingIO lock)
     try {
-      const micPromise = navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      const getMic = async () => {
+        try {
+          return await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch {
+          return await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true },
+          });
+        }
+      };
       const micTimeout = new Promise<never>((_, rej) =>
-        setTimeout(() => rej(new Error("Microphone permission timed out. Please allow access in your browser.")), 7000)
+        setTimeout(
+          () =>
+            rej(
+              new Error(
+                "Microphone timed out. Check macOS System Settings → Privacy & Security → Microphone → Google Chrome."
+              )
+            ),
+          10000
+        )
       );
-      this.stream = await Promise.race([micPromise, micTimeout]);
+      this.stream = await Promise.race([getMic(), micTimeout]);
 
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new AudioCtx();
