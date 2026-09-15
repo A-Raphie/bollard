@@ -287,11 +287,17 @@ export default function CockpitPage() {
       onFinal: (text, conf) => {
         setPartial("");
         setSilenceHint(false);
-        setFinals((prev) => [{ text, conf, ts: new Date().toLocaleTimeString() }, ...prev].slice(0, 30));
+        // Drop ambient-noise junk: skip if too short or confidence too low.
+        // Speechmatics returns 0-1 confidence; below 0.5 is typically noise,
+        // and single-char tokens like "A" or "." are never valid commands.
+        const cleanText = text.trim();
+        if (cleanText.length < 2) return;
+        if (conf !== null && conf < 0.5) return;
+        setFinals((prev) => [{ text: cleanText, conf, ts: new Date().toLocaleTimeString() }, ...prev].slice(0, 30));
         // Open mic mode: keep the line listening so consecutive commands
         // execute without requiring repeated manual clicks. The line can be
         // closed anytime via the button or typing/saying 'close mic'.
-        void runCommandRef.current?.(text, "voice", conf);
+        void runCommandRef.current?.(cleanText, "voice", conf);
       },
       onState: (s, detail) => {
         setVoiceState(s);
