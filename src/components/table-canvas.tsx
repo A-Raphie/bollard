@@ -624,9 +624,9 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
         roundedRect(ctx, badge.x, badge.y, badge.w, badge.h, 4);
         ctx.fill();
 
-        let borderColor = PALETTE.labelBorder;
-        let dotColor = PALETTE.ink3;
-        let textColor = PALETTE.ink2;
+        let borderColor: string = PALETTE.labelBorder;
+        let dotColor: string = PALETTE.ink3;
+        let textColor: string = PALETTE.ink2;
 
         if (badge.tone === "hot") {
           borderColor = "rgba(226, 106, 99, 0.4)";
