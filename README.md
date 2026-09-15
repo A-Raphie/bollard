@@ -4,34 +4,35 @@ The gate between hearing and hands: every spoken command to a robot arm is trans
 
 ![The Bollard cockpit mid-verdict](docs/media/hero.png)
 
-**Live:** [bollard-five.vercel.app](https://bollard-five.vercel.app) · cockpit at [/app](https://bollard-five.vercel.app/app)
+**Live:** [trybollard.netlify.app](https://trybollard.netlify.app) · cockpit at [/app](https://trybollard.netlify.app/app)
 
 ![track](https://img.shields.io/badge/track-Intel%20online%20%2B%20Speechmatics%20bonus-blue) ![stack](https://img.shields.io/badge/stack-Next.js%2016%20%2B%20Speechmatics%20RT-black) ![license](https://img.shields.io/badge/license-MIT-green)
 
 ## Proof, in 30 seconds
 
-Open the [cockpit](https://bollard-five.vercel.app/app) and type (same pipeline as voice, minus audio):
+Open the [cockpit](https://trybollard.netlify.app/app) and test either via live mic or one-click quick actions (identical pipeline):
 
-| # | say or type | what happens | what it proves |
+| # | Command | What happens | What it proves |
 |---|---|---|---|
-| 1 | `place a plate on the left placemat` | HOLD → ALLOW → left arm carries the plate; receipt # appended | the interlock pays the rope only after policy passes |
-| 2 | `throw the glass off the table` | DENY · EDGE_DROP · "Throwing the glass would shatter it." | hard denials carry a named code and a reason |
-| 3 | `move the pan to the center` | DENY · HAZARD_HOT · "The saucepan is hot. Manual handling only." | hazard classes gate verbs before motion |
-| 4 | hit **Verify chain** | `VALID · n links re-hashed, genesis intact` | the receipt chain is tamper-evident, not decorative |
+| 1 | `move plate` | HOLD → ALLOW → Robot arm transfers the plate to the open placemat; receipt appended | Interlock pays out the rope only after policy validates reach, state, and clear trajectory |
+| 2 | `grab candle` | INTERVENE · FLAME_LIT · "The candle flame is actively burning. Direct handling refused." | Active hazards immediately trigger hard policy intervention before motion begins |
+| 3 | `touch pan` | INTERVENE · HAZARD_HOT · "The saucepan is hot (85°C). Manual handling only." | Thermal and physical hazard sensors gate motor commands |
+| 4 | `throw glass` | INTERVENE · EDGE_DROP · "Throwing the glass would shatter it." | Dynamic drop and trajectory boundary enforcement |
+| 5 | hit **Verify Chain** | `VALID · n links re-hashed, genesis intact` | The SHA-256 audit receipt chain is cryptographically tamper-evident |
 
-Each receipt binds: words heard · transcription confidence · parsed intent · verdict code and reasons · scene fingerprint · previous hash. **Verify chain** recomputes every SHA-256 link in the browser.
+Each receipt binds: spoken utterance · transcription confidence · parsed intent · policy verdict code and reasons · scene state fingerprint · previous hash. **Verify Chain** recomputes every SHA-256 link live in Web Crypto.
 
 ## Honesty table
 
 | claim | reality |
 |---|---|
-| robot arm | 2D simulation, policy-driven animation. Not a trained VLA policy, not hardware |
+| robot arm | 2D kinematic simulation, policy-driven animation. Not a trained VLA policy, not physical hardware |
 | command understanding | deterministic grammar + policy engine. No LLM anywhere in the command path |
 | speech-to-text | Speechmatics Realtime (cloud SaaS). JWT minted server-side; the API key never reaches the browser |
 | on-device inference | none in v1. OpenVINO is not integrated (the onsite Intel track runs OpenVINO; the online brief is simulation-first) |
-| voice input | requires `SPEECHMATICS_API_KEY` configured on the server. Without it the cockpit says `MIC FAULT` and the typed path carries the full demo |
+| voice input | requires `SPEECHMATICS_API_KEY` configured on the server. The typed/quick-action path carries the identical verification pipeline |
 | receipts | stored per-browser (localStorage), verifiable in-app, exportable as JSON |
-| occluded tabs | the sim advances on wall-clock catch-up; commands settle even when the tab is not painted |
+| background noise | client-side noise suppression and confidence floor filter out low-scoring fragments before the policy engine |
 
 ## How it works
 
@@ -39,13 +40,13 @@ Each receipt binds: words heard · transcription confidence · parsed intent · 
 flow LR
   mic[Browser mic 16kHz PCM] -->|WebSocket + short-TTL JWT| SM[Speechmatics Realtime]
   SM -->|final transcript| P[Intent grammar]
-  P --> J[Policy engine]
+  P --> J[Deterministic policy engine]
   J -->|ALLOW| S[Table sim: arms animate]
-  J -->|DENY + reason| R[Receipt chain]
+  J -->|INTERVENE + reasons| R[Receipt chain]
   S --> R
 ```
 
-The whole safety argument is one function - readable, deterministic, testable:
+The whole safety argument is one function — readable, deterministic, testable:
 
 ```ts
 const { intent } = parseCommand(transcript, scene);
@@ -58,7 +59,10 @@ Denied classes: `HAZARD_HOT` · `FLAME_LIT` · `SHARP_MOTION` · `EDGE_DROP` · 
 
 ## The app
 
-The cockpit is one viewport: voice in on the left (SRC 1 = microphone, SRC 2 = typed commands, identical pipeline), the verdict annunciator up top, the dinner table center with the rope drawn from the bollard to the active arm, and the receipt chain on the right. The rope is held while the policy reads, paid out on allow, snubbed on deny.
+The cockpit is a unified single-viewport workstation:
+- **Comms Input (Left)**: Live microphone feed via Speechmatics Realtime (SRC 1) or typed/quick action buttons (SRC 2).
+- **Policy Monitor & Table Sim (Center)**: Real-time status annunciator and 2D dinner table simulation showing atmospheric lighting, thermal zones, tableware layout, and dual robot arms anchored to the safety bollard.
+- **Audit Chain (Right)**: Cryptographic SHA-256 hash log of every single action, with client-side verification and JSON export.
 
 ## Run locally
 
@@ -68,11 +72,9 @@ cp .env.local.example .env.local   # add SPEECHMATICS_API_KEY (portal.speechmati
 bun dev                            # localhost:3000
 ```
 
-The typed command path works with no API key at all.
-
 ## Deploy
 
-Vercel, free tier: static app + one serverless function (`/api/token`) that mints 120-second Speechmatics JWTs. Set `SPEECHMATICS_API_KEY` in the project's environment variables. Live deployment: [bollard-five.vercel.app](https://bollard-five.vercel.app).
+Deployed on Netlify: static export + serverless function (`/api/token`) that mints short-TTL Speechmatics JWTs. Live deployment: [trybollard.netlify.app](https://trybollard.netlify.app).
 
 ## Project structure
 
