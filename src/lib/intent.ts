@@ -5,12 +5,12 @@ import type { Destination, Intent, Relation } from "./types";
 import { resolveObject, type SceneState } from "./scene";
 
 const VERB_LEXICON: Array<{ verb: Intent["verb"]; words: string[] }> = [
-  { verb: "place", words: ["place", "put", "set", "move", "position", "lay", "drop"] },
-  { verb: "pick", words: ["pick up", "pick", "grab", "hold", "take"] },
-  { verb: "remove", words: ["remove", "clear", "take off", "strip"] },
-  { verb: "slide", words: ["slide", "push", "nudge"] },
-  { verb: "wave", words: ["wave", "swing", "brandish", "flourish", "point"] },
-  { verb: "throw", words: ["throw", "toss", "fling", "chuck", "lob", "knock"] },
+  { verb: "place", words: ["place", "put", "set", "move", "position", "lay", "drop", "pass", "shift", "transfer", "bring", "give", "hand", "send"] },
+  { verb: "pick", words: ["pick up", "pick", "grab", "hold", "take", "touch", "get", "lift", "carry"] },
+  { verb: "remove", words: ["remove", "clear", "take off", "strip", "clean", "trash", "stow", "store", "discard"] },
+  { verb: "slide", words: ["slide", "push", "nudge", "glide", "drag"] },
+  { verb: "wave", words: ["wave", "swing", "brandish", "flourish", "point", "shake"] },
+  { verb: "throw", words: ["throw", "toss", "fling", "chuck", "lob", "knock", "drop off", "shatter", "break", "smash"] },
 ];
 
 export interface ParseResult {
@@ -59,6 +59,26 @@ export function parseCommand(transcript: string, scene: SceneState): ParseResult
       break;
     }
     if (!unknownNoun && !REL_WORDS.has(noun)) unknownNoun = noun;
+  }
+
+  // If no object found after verb, try searching whole sentence (e.g. "plate move")
+  if (!objectId && verbIdx < Infinity) {
+    const allNouns = t.match(/\b(?:a|an|the|that|this)?\s*([a-z]+)\b/g) ?? [];
+    for (const m of allNouns) {
+      const noun = m.trim().split(" ").pop() as string;
+      if (STOPWORDS.has(noun) || DEST_WORDS.has(noun)) continue;
+      const id = resolveObject(scene, noun);
+      if (id) {
+        objectId = id;
+        break;
+      }
+    }
+  }
+
+  // Natural shorthand: if user says just the object (e.g. "candle", "hot pan", "the plate"),
+  // default verb to "pick" so policy can evaluate and either allow or deny with safety reason
+  if (verb === "unknown" && objectId) {
+    verb = "pick";
   }
 
   if (verb === "unknown") {

@@ -556,7 +556,7 @@ export default function CockpitPage() {
             <div className="flex gap-2">
               <input
                 className="input flex-1 px-2.5 text-[12px]"
-                placeholder="e.g. place a plate on the left placemat"
+                placeholder="Speak or type: 'move plate', 'pick spoon', 'grab candle'..."
                 value={typed}
                 onChange={(e) => setTyped(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && submitTyped()}
@@ -570,21 +570,24 @@ export default function CockpitPage() {
               </button>
             </div>
 
-            {/* Tactical Quick Action Chips */}
+            {/* Tactical Easy Quick Action Commands */}
             <div className="mt-2.5 space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono text-ink-3 uppercase">Allowed Actions</span>
-                <span className="text-[9px] font-mono text-ok">PASS</span>
+                <span className="text-[10px] font-mono text-ink-3 uppercase tracking-wider">Quick Actions (Safe)</span>
+                <span className="text-[9px] font-mono text-ok font-semibold">PASS</span>
               </div>
               <div className="flex flex-wrap gap-1">
                 {[
-                  "place a plate on the left placemat",
-                  "move the napkin to the tray",
-                  "open mic",
+                  "move plate",
+                  "pick spoon",
+                  "pass napkin",
+                  "slide fork",
+                  "pick bowl",
+                  "clear plate",
                 ].map((c) => (
                   <button
                     key={c}
-                    className="annunciator px-2 py-1 text-[10px] text-ink-2 transition-colors hover:border-ok hover:text-ok hover:bg-ok-bg"
+                    className="annunciator px-2.5 py-1 text-[11px] font-mono text-ink-2 transition-all hover:border-ok hover:text-ok hover:bg-ok-bg active:scale-95"
                     onClick={() => {
                       if (busyRef.current || simRef.current?.busy) return;
                       void runCommand(c, "typed", null);
@@ -596,18 +599,19 @@ export default function CockpitPage() {
               </div>
 
               <div className="pt-1 flex items-center justify-between">
-                <span className="text-[10px] font-mono text-ink-3 uppercase">Hazard Tests</span>
-                <span className="text-[9px] font-mono text-deny">REFUSED</span>
+                <span className="text-[10px] font-mono text-ink-3 uppercase tracking-wider">Hazard Tests (Refused)</span>
+                <span className="text-[9px] font-mono text-deny font-semibold">INTERVENE</span>
               </div>
               <div className="flex flex-wrap gap-1">
                 {[
-                  "throw the glass off the table",
-                  "move the pan to the center",
-                  "grab the lit candle",
+                  "grab candle",
+                  "touch pan",
+                  "throw glass",
+                  "wave knife",
                 ].map((c) => (
                   <button
                     key={c}
-                    className="annunciator px-2 py-1 text-[10px] text-ink-2 transition-colors hover:border-deny hover:text-deny hover:bg-deny-bg"
+                    className="annunciator px-2.5 py-1 text-[11px] font-mono text-ink-2 transition-all hover:border-deny hover:text-deny hover:bg-deny-bg active:scale-95"
                     onClick={() => {
                       if (busyRef.current || simRef.current?.busy) return;
                       void runCommand(c, "typed", null);

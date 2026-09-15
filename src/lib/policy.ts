@@ -102,8 +102,20 @@ export function judge(scene: SceneState, arms: Record<"left" | "right", ArmRunti
     const [ox, oy] = offs[d.relation ?? "near"];
     const anchorLabel = OBJECTS.find((o) => o.id === anchorId)?.label ?? anchorId;
     destPoint = { x: a.x + ox, y: a.y + oy, label: `beside the ${anchorLabel}` };
-  } else if (intent.verb === "place" || intent.verb === "remove" || intent.verb === "slide") {
-    return deny("UNKNOWN_VERB", `Where should the ${label} go? Add a destination: “to the left placemat”, “next to the bowl”, “to the tray”.`, arm);
+  } else if (intent.verb === "remove") {
+    // Shorthand "remove <obj>" / "clear <obj>" naturally routes to the staging tray
+    const z = ZONES.tray;
+    destPoint = { x: z.x, y: z.y, label: z.label };
+  } else if (intent.verb === "place" || intent.verb === "slide") {
+    // Shorthand "move <obj>" / "place <obj>" defaults to the arm's side placemat or center
+    const preferredKey = arm === "left" ? "left-placemat" : "right-placemat";
+    const prefZone = ZONES[preferredKey];
+    const centerZone = ZONES.center;
+    const prefTaken = Object.entries(scene.objects).some(
+      ([id, s]) => id !== objId && s.onTable && !s.heldBy && distance(s.x, s.y, prefZone.x, prefZone.y) < 0.12,
+    );
+    const chosen = !prefTaken ? prefZone : centerZone;
+    destPoint = { x: chosen.x, y: chosen.y, label: chosen.label };
   }
 
   if (destPoint) {

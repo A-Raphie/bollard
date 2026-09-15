@@ -9,7 +9,7 @@ export const ARM_ANCHOR: Record<"left" | "right", { x: number; y: number }> = {
   left: { x: -0.55, y: -0.62 },
   right: { x: 0.55, y: -0.62 },
 };
-export const ARM_REACH = 0.85;
+export const ARM_REACH = 1.15;
 export const TRAY = { x: 0, y: -0.78 }; // staging tray behind the table (off-table zone)
 
 export const OBJECTS: SceneObject[] = [

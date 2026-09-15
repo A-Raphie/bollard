@@ -80,37 +80,39 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
       const tableW = (TABLE.maxX - TABLE.minX) * scale;
       const tableH = (TABLE.maxY - TABLE.minY) * scale;
 
-      // 1. TABLE: Precision aerospace/robotics slate workbench with radial lighting
+      // 1. TABLE: Precision aerospace/robotics slate workbench with radial lighting & atmospheric glow
       ctx.save();
       // Outer ambient drop shadow
-      ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
-      ctx.shadowBlur = 24;
-      ctx.shadowOffsetY = 8;
-      roundedRect(ctx, tableX, tableY, tableW, tableH, 12);
+      ctx.shadowColor = "rgba(0, 0, 0, 0.65)";
+      ctx.shadowBlur = 28;
+      ctx.shadowOffsetY = 10;
+      roundedRect(ctx, tableX, tableY, tableW, tableH, 14);
       ctx.fillStyle = PALETTE.tableWood;
       ctx.fill();
       ctx.restore();
 
       // Subtle radial workbench surface illumination
-      const tableGrad = ctx.createRadialGradient(cx, cy, 0.1 * scale, cx, cy, 0.9 * scale);
+      const tableGrad = ctx.createRadialGradient(cx, cy, 0.05 * scale, cx, cy, 0.85 * scale);
       tableGrad.addColorStop(0, PALETTE.tableSurfaceCenter);
-      tableGrad.addColorStop(1, PALETTE.tableWood);
+      tableGrad.addColorStop(0.7, PALETTE.tableWood);
+      tableGrad.addColorStop(1, "#0a0e14");
       ctx.fillStyle = tableGrad;
-      roundedRect(ctx, tableX, tableY, tableW, tableH, 12);
+      roundedRect(ctx, tableX, tableY, tableW, tableH, 14);
       ctx.fill();
 
-      // Table perimeter rim and precision highlight
+      // Table perimeter rim and precision chamfer highlight
       ctx.strokeStyle = PALETTE.tableRim;
       ctx.lineWidth = 2.5;
+      roundedRect(ctx, tableX, tableY, tableW, tableH, 14);
       ctx.stroke();
 
       ctx.strokeStyle = PALETTE.tableHighlight;
       ctx.lineWidth = 1;
-      roundedRect(ctx, tableX + 3, tableY + 3, tableW - 6, tableH - 6, 10);
+      roundedRect(ctx, tableX + 3, tableY + 3, tableW - 6, tableH - 6, 12);
       ctx.stroke();
 
-      // Surface precision grid: micro registration marks at 0.4m intervals
-      ctx.fillStyle = "rgba(232, 236, 242, 0.08)";
+      // Surface precision grid: micro registration marks at 0.3m intervals
+      ctx.fillStyle = "rgba(232, 236, 242, 0.07)";
       for (let gx = -0.6; gx <= 0.61; gx += 0.3) {
         for (let gy = -0.3; gy <= 0.31; gy += 0.3) {
           const px = X(gx);
@@ -120,7 +122,35 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
         }
       }
 
-      // 2. PLACEMATS: Clean silicone inspection mats with corner registration ticks
+      // ATMOSPHERIC LIGHTING: Candle flame aura cast on table
+      const candleObj = sim.scene.objects["candle"];
+      if (candleObj && candleObj.onTable && candleObj.lit) {
+        const clx = X(candleObj.x);
+        const cly = Y(candleObj.y);
+        const clg = ctx.createRadialGradient(clx, cly, 10, clx, cly, 0.55 * scale);
+        clg.addColorStop(0, "rgba(245, 158, 11, 0.22)");
+        clg.addColorStop(0.35, "rgba(245, 158, 11, 0.09)");
+        clg.addColorStop(1, "rgba(245, 158, 11, 0)");
+        ctx.fillStyle = clg;
+        roundedRect(ctx, tableX, tableY, tableW, tableH, 14);
+        ctx.fill();
+      }
+
+      // ATMOSPHERIC LIGHTING: Saucepan thermal radiation on table
+      const panObj = sim.scene.objects["saucepan"];
+      if (panObj && panObj.onTable && panObj.hot) {
+        const pnx = X(panObj.x);
+        const pny = Y(panObj.y);
+        const png = ctx.createRadialGradient(pnx, pny, 12, pnx, pny, 0.38 * scale);
+        png.addColorStop(0, "rgba(239, 68, 68, 0.16)");
+        png.addColorStop(0.5, "rgba(220, 38, 38, 0.05)");
+        png.addColorStop(1, "rgba(220, 38, 38, 0)");
+        ctx.fillStyle = png;
+        roundedRect(ctx, tableX, tableY, tableW, tableH, 14);
+        ctx.fill();
+      }
+
+      // 2. PLACEMATS: Clean silicone inspection mats with corner registration ticks & stitched border
       for (const key of ["left-placemat", "right-placemat"] as const) {
         const z = ZONES[key];
         const pw = 0.36 * scale;
@@ -135,6 +165,14 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
         ctx.strokeStyle = PALETTE.placematBorder;
         ctx.lineWidth = 1;
         ctx.stroke();
+
+        // Stitched inner hemline
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        roundedRect(ctx, px + 4, py + 4, pw - 8, ph - 8, 4);
+        ctx.stroke();
+        ctx.setLineDash([]);
 
         // Corner registration brackets ┌ ┐ └ ┘
         ctx.strokeStyle = PALETTE.accent;
@@ -167,7 +205,7 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
 
         ctx.font = "8px var(--font-geist-mono), monospace";
         ctx.textAlign = "center";
-        ctx.fillStyle = "rgba(154, 166, 182, 0.55)";
+        ctx.fillStyle = "rgba(154, 166, 182, 0.6)";
         ctx.fillText(key === "left-placemat" ? "ZONE 1 · LEFT PLACE" : "ZONE 2 · RIGHT PLACE", px + pw / 2, py + ph - 8);
       }
 
@@ -263,6 +301,24 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
             ctx.beginPath();
             ctx.arc(px, py, r * 0.88, -2.4, -1.2);
             ctx.stroke();
+
+            // If stacked with another plate, render crisp micro 2× tag on the top plate
+            const otherPlate = activeObjects.find((o) => o.id !== obj.id && o.label === "plate" && Math.hypot(o.px - px, o.py - py) < 0.06 * scale);
+            if (otherPlate && obj.id === "plate_2") {
+              ctx.save();
+              ctx.fillStyle = "rgba(15, 23, 42, 0.88)";
+              ctx.strokeStyle = PALETTE.tableHighlight;
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.arc(px + r * 0.72, py - r * 0.72, 7.5, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.stroke();
+              ctx.font = "bold 8px var(--font-geist-mono), monospace";
+              ctx.fillStyle = "#ffffff";
+              ctx.textAlign = "center";
+              ctx.fillText("2×", px + r * 0.72, py - r * 0.72 + 2.5);
+              ctx.restore();
+            }
             break;
           }
           case "glass": {
@@ -386,6 +442,23 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
             ctx.moveTo(px - r * 0.9, py);
             ctx.lineTo(px + r * 0.9, py);
             ctx.stroke();
+
+            const otherNapkin = activeObjects.find((o) => o.id !== obj.id && o.label === "napkin" && Math.hypot(o.px - px, o.py - py) < 0.06 * scale);
+            if (otherNapkin && obj.id === "napkin_2") {
+              ctx.save();
+              ctx.fillStyle = "rgba(15, 23, 42, 0.88)";
+              ctx.strokeStyle = PALETTE.tableHighlight;
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.arc(px + r * 0.8, py - r * 0.65, 7, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.stroke();
+              ctx.font = "bold 8px var(--font-geist-mono), monospace";
+              ctx.fillStyle = "#ffffff";
+              ctx.textAlign = "center";
+              ctx.fillText("2×", px + r * 0.8, py - r * 0.65 + 2.5);
+              ctx.restore();
+            }
             break;
           }
           case "candle": {
@@ -509,26 +582,41 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
         }
       }
 
-      // SMART CLUSTER & COLLISION-FREE LABEL BADGES
-      interface LabelBadge {
+      // 4. SAFETY HAZARD BADGES & ELEGANT TABLEWARE MICRO-LABELS
+      // Prominent annunciator badges are ONLY rendered for hazardous items (hot, flame, blade, fragile)
+      // to keep the tabletop clean, uncluttered, and realistic. Safe tableware gets subtle micro-labels.
+      interface HazardBadge {
         text: string;
-        tone: "safe" | "fragile" | "hot" | "flame" | "sharp";
+        tone: "fragile" | "hot" | "flame" | "sharp";
         x: number;
         y: number;
         w: number;
         h: number;
       }
 
-      const badges: LabelBadge[] = [];
+      const hazardBadges: HazardBadge[] = [];
       const handled = new Set<string>();
-
-      ctx.font = "10px var(--font-geist-mono), monospace";
 
       for (let i = 0; i < activeObjects.length; i++) {
         const objA = activeObjects[i];
         if (handled.has(objA.id)) continue;
 
-        // Check if there are duplicate objects closely stacked (within 0.08m)
+        const isHazard =
+          (objA.label === "saucepan" && objA.st.hot) ||
+          (objA.label === "candle" && objA.st.lit) ||
+          objA.label === "knife" ||
+          objA.safety === "fragile";
+
+        if (!isHazard) {
+          // Safe tableware: draw crisp, subtle micro-label directly without blocking the table
+          ctx.font = "8.5px var(--font-geist-mono), monospace";
+          ctx.fillStyle = objA.st.heldBy ? PALETTE.accent : "rgba(164, 177, 196, 0.7)";
+          ctx.textAlign = "center";
+          ctx.fillText(objA.label, objA.px, objA.py + objA.r + 11);
+          continue;
+        }
+
+        // Check for clustered hazards (e.g. 2 fragile glasses)
         const cluster = [objA];
         for (let j = i + 1; j < activeObjects.length; j++) {
           const objB = activeObjects[j];
@@ -540,51 +628,36 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
         handled.add(objA.id);
 
         let labelText = "";
-        let tone: LabelBadge["tone"] = "safe";
+        let tone: HazardBadge["tone"] = "fragile";
 
-        if (cluster.length > 1) {
-          // Cluster tag
-          const count = cluster.length;
-          if (objA.label === "plate") labelText = `${count}× Plates (ceramic)`;
-          else if (objA.label === "glass") {
-            labelText = `${count}× Glasses · fragile`;
-            tone = "fragile";
-          } else if (objA.label === "napkin") labelText = `${count}× Napkins`;
-          else labelText = `${count}× ${objA.label}s`;
-        } else {
-          // Single item tag
-          if (objA.label === "saucepan" && objA.st.hot) {
-            labelText = "Saucepan · HOT 85°C";
-            tone = "hot";
-          } else if (objA.label === "candle" && objA.st.lit) {
-            labelText = "Candle · LIT FLAME";
-            tone = "flame";
-          } else if (objA.label === "knife") {
-            labelText = "Knife · BLADE";
-            tone = "sharp";
-          } else if (objA.safety === "fragile") {
-            labelText = `${objA.label} · fragile`;
-            tone = "fragile";
-          } else {
-            labelText = objA.label;
-          }
+        if (objA.label === "saucepan" && objA.st.hot) {
+          labelText = "Saucepan · HOT 85°C";
+          tone = "hot";
+        } else if (objA.label === "candle" && objA.st.lit) {
+          labelText = "Candle · LIT FLAME";
+          tone = "flame";
+        } else if (objA.label === "knife") {
+          labelText = "Knife · BLADE";
+          tone = "sharp";
+        } else if (objA.safety === "fragile") {
+          labelText = cluster.length > 1 ? `${cluster.length}× Glasses · FRAGILE` : "Glass · FRAGILE";
+          tone = "fragile";
         }
 
-        // Compute centroid of the cluster
         const avgX = cluster.reduce((sum, o) => sum + o.px, 0) / cluster.length;
         const avgY = cluster.reduce((sum, o) => sum + o.py, 0) / cluster.length;
 
+        ctx.font = "10px var(--font-geist-mono), monospace";
         const textMetrics = ctx.measureText(labelText);
-        const bw = textMetrics.width + 16;
+        const bw = textMetrics.width + 18;
         const bh = 18;
 
-        // Default position: above the object unless near top of table
         let targetY = avgY - objA.r - 14;
         if (avgY < tableY + 50) {
           targetY = avgY + objA.r + 14;
         }
 
-        badges.push({
+        hazardBadges.push({
           text: labelText,
           tone,
           x: avgX - bw / 2,
@@ -594,32 +667,30 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
         });
       }
 
-      // Simple repulsion relaxation to eliminate all label collisions
-      for (let iter = 0; iter < 8; iter++) {
-        for (let a = 0; a < badges.length; a++) {
-          for (let b = a + 1; b < badges.length; b++) {
-            const b1 = badges[a];
-            const b2 = badges[b];
+      // Repulsion relaxation on hazard badges to prevent overlap
+      for (let iter = 0; iter < 6; iter++) {
+        for (let a = 0; a < hazardBadges.length; a++) {
+          for (let b = a + 1; b < hazardBadges.length; b++) {
+            const b1 = hazardBadges[a];
+            const b2 = hazardBadges[b];
             const overlapX = Math.min(b1.x + b1.w, b2.x + b2.w) - Math.max(b1.x, b2.x);
             const overlapY = Math.min(b1.y + b1.h, b2.y + b2.h) - Math.max(b1.y, b2.y);
             if (overlapX > 0 && overlapY > 0) {
-              // Overlap exists: push vertically
               const pushY = (overlapY + 4) / 2;
               if (b1.y < b2.y) {
                 b1.y -= pushY;
                 b2.y += pushY;
               } else {
                 b1.y += pushY;
-                b2.y -= pushY;
+                b2.y += pushY;
               }
             }
           }
         }
       }
 
-      // Render the refined badges
-      for (const badge of badges) {
-        // Pill background with hairline border
+      // Render the prominent hazard badges with warning pips
+      for (const badge of hazardBadges) {
         ctx.fillStyle = PALETTE.labelBg;
         roundedRect(ctx, badge.x, badge.y, badge.w, badge.h, 4);
         ctx.fill();
@@ -629,33 +700,35 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
         let textColor: string = PALETTE.ink2;
 
         if (badge.tone === "hot") {
-          borderColor = "rgba(226, 106, 99, 0.4)";
+          borderColor = "rgba(226, 106, 99, 0.5)";
           dotColor = PALETTE.deny;
           textColor = "#fca5a5";
         } else if (badge.tone === "flame") {
-          borderColor = "rgba(229, 177, 68, 0.4)";
+          borderColor = "rgba(229, 177, 68, 0.5)";
           dotColor = PALETTE.warn;
           textColor = "#fde047";
         } else if (badge.tone === "fragile") {
-          borderColor = "rgba(83, 213, 232, 0.35)";
+          borderColor = "rgba(83, 213, 232, 0.4)";
           dotColor = PALETTE.accent;
           textColor = "#a5f3fc";
         } else if (badge.tone === "sharp") {
-          borderColor = "rgba(229, 177, 68, 0.3)";
+          borderColor = "rgba(229, 177, 68, 0.4)";
           dotColor = PALETTE.warn;
+          textColor = "#fed7aa";
         }
 
         ctx.strokeStyle = borderColor;
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // Status pip
+        // Hazard status pip
         ctx.fillStyle = dotColor;
         ctx.beginPath();
         ctx.arc(badge.x + 8, badge.y + badge.h / 2, 2.5, 0, Math.PI * 2);
         ctx.fill();
 
         // Label text
+        ctx.font = "10px var(--font-geist-mono), monospace";
         ctx.fillStyle = textColor;
         ctx.textAlign = "left";
         ctx.fillText(badge.text, badge.x + 14, badge.y + badge.h / 2 + 3.5);
