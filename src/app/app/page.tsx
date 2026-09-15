@@ -527,7 +527,7 @@ export default function CockpitPage() {
           {/* Transcript History Feed */}
           <div className="flex min-h-0 flex-1 flex-col border-t border-line pt-2.5">
             <span className="micro mb-1.5 text-[10px]">Utterance History</span>
-            <div className="min-h-0 flex-1 overflow-y-auto space-y-1.5 pr-1">
+            <div className="min-h-0 flex-1 overflow-hidden space-y-1.5 pr-1" style={{ maskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)' }}>
               {finals.length === 0 && (
                 <p className="py-2 text-[11px] text-ink-3">
                   Spoken utterances will appear here with transcription timestamps.
@@ -688,7 +688,7 @@ export default function CockpitPage() {
             </p>
           )}
 
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden border-t border-line pt-2 space-y-1.5">
+          <div className="min-h-0 flex-1 overflow-hidden border-t border-line pt-2 space-y-1.5" style={{ maskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)' }}>
             {receipts.length === 0 && (
               <p className="py-3 text-[12px] text-ink-3 leading-relaxed">
                 Every command appends a tamper-evident SHA-256 receipt: what was spoken, policy verdict, arm motion, and post-state fingerprint.
