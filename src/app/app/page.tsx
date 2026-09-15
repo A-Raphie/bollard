@@ -287,12 +287,16 @@ export default function CockpitPage() {
       onFinal: (text, conf) => {
         setPartial("");
         setSilenceHint(false);
-        // Drop ambient-noise junk: skip if too short or confidence too low.
-        // Speechmatics returns 0-1 confidence; below 0.5 is typically noise,
-        // and single-char tokens like "A" or "." are never valid commands.
+        // Drop ambient-noise junk before hitting the policy engine.
+        // Rules (all must pass):
+        //  1. Strip punctuation and require ≥2 real words — commands are always verb+noun.
+        //     Catches noise like "That.", "I.", "Plus", ".".
+        //  2. Confidence ≥ 0.55 — Speechmatics scores 0-1; noise/guessing scores low.
+        //     Real commands like "move plate" come back >0.8.
         const cleanText = text.trim();
-        if (cleanText.length < 2) return;
-        if (conf !== null && conf < 0.5) return;
+        const wordCount = cleanText.replace(/[^a-z0-9\s]/gi, " ").trim().split(/\s+/).filter(Boolean).length;
+        if (wordCount < 2) return;
+        if (conf !== null && conf < 0.55) return;
         setFinals((prev) => [{ text: cleanText, conf, ts: new Date().toLocaleTimeString() }, ...prev].slice(0, 30));
         // Open mic mode: keep the line listening so consecutive commands
         // execute without requiring repeated manual clicks. The line can be
