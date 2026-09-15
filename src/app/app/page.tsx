@@ -411,7 +411,7 @@ export default function CockpitPage() {
       <SiteHeader active="cockpit" />
       <main className="grid min-h-0 flex-1 grid-cols-[320px_1fr_360px] gap-3 overflow-hidden p-3 max-[1100px]:grid-cols-1">
         {/* VOICE & COMMAND INPUT (SRC 1 / SRC 2) */}
-        <section className="panel flex min-h-0 flex-col gap-3 p-3.5">
+        <section className="panel flex min-h-0 flex-col gap-3 overflow-hidden p-3.5">
           {/* Channel Header */}
           <div className="flex items-center justify-between border-b border-line pb-2.5">
             <div className="flex items-center gap-2">
@@ -622,7 +622,7 @@ export default function CockpitPage() {
         </section>
 
         {/* VERDICT INSTRUMENT + TABLE CANVAS */}
-        <section className="flex min-h-0 flex-col gap-3">
+        <section className="flex min-h-0 flex-col gap-3 overflow-hidden">
           {/* Avionics Annunciator Instrument */}
           <div className={`annunciator flex items-center gap-4 px-4 py-3 transition-colors duration-150 ${allowPulse ? "allow-pulse" : ""} ${tileTone}`}>
             <div className="flex flex-col items-center justify-center shrink-0 min-w-28">
