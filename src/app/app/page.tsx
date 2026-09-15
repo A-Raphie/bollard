@@ -445,7 +445,7 @@ export default function CockpitPage() {
             ) : voiceState === "connecting" ? (
               <>
                 <span className="inline-block h-2 w-2 animate-spin rounded-full border border-warn border-t-transparent" />
-                <span>CONNECTING WEBSOCKET…</span>
+                <span>{voiceDetail || "CONNECTING…"}</span>
               </>
             ) : (
               <>

@@ -88,7 +88,7 @@ export class VoiceSession {
   async start(cbs: VoiceCallbacks): Promise<void> {
     if (this.running) return;
     this.cbs = cbs;
-    this.setState("connecting");
+    this.setState("connecting", "ACQUIRING MIC…");
     this.transcriptBuffer = "";
     this.audioQueue = [];
     this.lastConf = null;
@@ -98,17 +98,19 @@ export class VoiceSession {
       this.transcriptTimer = null;
     }
 
-    // 1. CRITICAL: Acquire mic and initialize AudioContext IMMEDIATELY within the
-    // user gesture activation tick. Awaiting network fetch('/api/token') first expires
-    // the user activation window in Chrome/Safari, causing suspended AudioContexts and silent mics.
+    // 1. Acquire mic with strict 7s timeout
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
+      const micPromise = navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
         },
       });
+      const micTimeout = new Promise<never>((_, rej) =>
+        setTimeout(() => rej(new Error("Microphone permission timed out. Please allow access in your browser.")), 7000)
+      );
+      this.stream = await Promise.race([micPromise, micTimeout]);
 
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new AudioCtx();
@@ -122,7 +124,7 @@ export class VoiceSession {
         }
       };
 
-      // Anchor source node to instance and window to prevent V8 GC sweep from killing mic input
+      // Anchor source node to instance and window to prevent V8 GC sweep
       this.source = this.ctx.createMediaStreamSource(this.stream);
       if (typeof window !== "undefined") {
         (window as unknown as { __bollardSource?: MediaStreamAudioSourceNode }).__bollardSource = this.source;
@@ -139,7 +141,7 @@ export class VoiceSession {
       };
 
       this.sink = this.ctx.createGain();
-      this.sink.gain.value = 0; // silent sink: ScriptProcessor needs a destination to pump
+      this.sink.gain.value = 0;
       this.source.connect(this.processor);
       this.processor.connect(this.sink);
       this.sink.connect(this.ctx.destination);
@@ -149,10 +151,14 @@ export class VoiceSession {
       return;
     }
 
-    // 2. Obtain JWT from server
+    // 2. Obtain JWT from server with 7s timeout
+    this.setState("connecting", "AUTHENTICATING…");
     let jwt: string;
     try {
-      const res = await fetch("/api/token", { method: "POST" });
+      const ctrl = new AbortController();
+      const tokenTimeout = setTimeout(() => ctrl.abort(), 7000);
+      const res = await fetch("/api/token", { method: "POST", signal: ctrl.signal });
+      clearTimeout(tokenTimeout);
       const data = (await res.json()) as { jwt?: string; error?: string };
       if (!res.ok || !data.jwt) throw new Error(data.error ?? "Token endpoint failed");
       jwt = data.jwt;
@@ -162,8 +168,9 @@ export class VoiceSession {
       return;
     }
 
-    // 3. Connect Speechmatics RealtimeClient
-    this.client = new RealtimeClient({ url: "wss://global.rt.speechmatics.com/v2" });
+    // 3. Connect Speechmatics RealtimeClient (defaults to eu2 matching token audience)
+    this.setState("connecting", "CONNECTING WEBSOCKET…");
+    this.client = new RealtimeClient();
 
     this.client.addEventListener("receiveMessage", (evt) => {
       const d = evt.data;
@@ -212,7 +219,7 @@ export class VoiceSession {
     });
 
     try {
-      await this.client.start(jwt, {
+      const startPromise = this.client.start(jwt, {
         transcription_config: {
           language: "en",
           max_delay: 0.7,
@@ -222,6 +229,10 @@ export class VoiceSession {
         },
         audio_format: { type: "raw", encoding: "pcm_s16le", sample_rate: 16000 },
       });
+      const startTimeout = new Promise<never>((_, rej) =>
+        setTimeout(() => rej(new Error("WebSocket connection timed out (8s). Check network or firewall.")), 8000)
+      );
+      await Promise.race([startPromise, startTimeout]);
 
       if (this.captureProbe) clearTimeout(this.captureProbe);
       this.captureProbe = setTimeout(() => {
