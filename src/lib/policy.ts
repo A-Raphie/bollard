@@ -44,13 +44,7 @@ export function judge(scene: SceneState, arms: Record<"left" | "right", ArmRunti
     return deny("NOT_ON_TABLE", `The ${label} is already off the table.`);
   }
 
-  // arm selection: explicit wins, else nearest to the object
-  const arm = intent.arm ?? armForPoint(scene, st.x, st.y);
-  if (!arm) {
-    return deny("OUT_OF_REACH", `The ${label} is outside both arms' reach.`);
-  }
-
-  // verb-specific hard denials
+  // verb-specific hard denials (safety invariants apply before geometric reach)
   if (intent.verb === "throw" || intent.verb === "wave") {
     if (obj?.safety === "sharp") {
       return deny("SHARP_MOTION", `The ${label} is a blade. Waving or throwing it is never an allowed motion.`);
@@ -67,6 +61,12 @@ export function judge(scene: SceneState, arms: Record<"left" | "right", ArmRunti
   }
   if (obj?.safety === "flame" && st.lit) {
     return deny("FLAME_LIT", `The ${label} is lit. Open flame: no robot handling until it's out.`);
+  }
+
+  // arm selection: explicit wins, else nearest to the object
+  const arm = intent.arm ?? armForPoint(scene, st.x, st.y);
+  if (!arm) {
+    return deny("OUT_OF_REACH", `The ${label} is outside both arms' reach.`);
   }
 
   // gripper occupancy

@@ -75,217 +75,415 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
       const X = (wx: number) => cx + wx * scale;
       const Y = (wy: number) => cy + wy * scale;
 
-      // table: warm walnut on the slate cockpit
+      const tableX = X(TABLE.minX);
+      const tableY = Y(TABLE.minY);
+      const tableW = (TABLE.maxX - TABLE.minX) * scale;
+      const tableH = (TABLE.maxY - TABLE.minY) * scale;
+
+      // 1. TABLE: Precision aerospace/robotics slate workbench with radial lighting
+      ctx.save();
+      // Outer ambient drop shadow
+      ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
+      ctx.shadowBlur = 24;
+      ctx.shadowOffsetY = 8;
+      roundedRect(ctx, tableX, tableY, tableW, tableH, 12);
       ctx.fillStyle = PALETTE.tableWood;
-      roundedRect(ctx, X(TABLE.minX), Y(TABLE.minY), (TABLE.maxX - TABLE.minX) * scale, (TABLE.maxY - TABLE.minY) * scale, 10);
       ctx.fill();
+      ctx.restore();
+
+      // Subtle radial workbench surface illumination
+      const tableGrad = ctx.createRadialGradient(cx, cy, 0.1 * scale, cx, cy, 0.9 * scale);
+      tableGrad.addColorStop(0, PALETTE.tableSurfaceCenter);
+      tableGrad.addColorStop(1, PALETTE.tableWood);
+      ctx.fillStyle = tableGrad;
+      roundedRect(ctx, tableX, tableY, tableW, tableH, 12);
+      ctx.fill();
+
+      // Table perimeter rim and precision highlight
       ctx.strokeStyle = PALETTE.tableRim;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      // subtle top-edge highlight so the surface reads as lit from above
-      ctx.strokeStyle = "rgba(255,236,200,0.05)";
-      ctx.lineWidth = 1;
-      roundedRect(ctx, X(TABLE.minX) + 3, Y(TABLE.minY) + 3, (TABLE.maxX - TABLE.minX) * scale - 6, (TABLE.maxY - TABLE.minY) * scale - 6, 8);
+      ctx.lineWidth = 2.5;
       ctx.stroke();
 
-      // placemats (woven cloth) + tray
+      ctx.strokeStyle = PALETTE.tableHighlight;
+      ctx.lineWidth = 1;
+      roundedRect(ctx, tableX + 3, tableY + 3, tableW - 6, tableH - 6, 10);
+      ctx.stroke();
+
+      // Surface precision grid: micro registration marks at 0.4m intervals
+      ctx.fillStyle = "rgba(232, 236, 242, 0.08)";
+      for (let gx = -0.6; gx <= 0.61; gx += 0.3) {
+        for (let gy = -0.3; gy <= 0.31; gy += 0.3) {
+          const px = X(gx);
+          const py = Y(gy);
+          ctx.fillRect(px - 3, py - 0.5, 6, 1);
+          ctx.fillRect(px - 0.5, py - 3, 1, 6);
+        }
+      }
+
+      // 2. PLACEMATS: Clean silicone inspection mats with corner registration ticks
       for (const key of ["left-placemat", "right-placemat"] as const) {
         const z = ZONES[key];
+        const pw = 0.36 * scale;
+        const ph = 0.26 * scale;
+        const px = X(z.x - 0.18);
+        const py = Y(z.y - 0.13);
+
         ctx.fillStyle = PALETTE.placematFill;
-        roundedRect(ctx, X(z.x - 0.17), Y(z.y - 0.12), 0.34 * scale, 0.24 * scale, 5);
+        roundedRect(ctx, px, py, pw, ph, 6);
         ctx.fill();
-        ctx.strokeStyle = PALETTE.line;
+
+        ctx.strokeStyle = PALETTE.placematBorder;
         ctx.lineWidth = 1;
         ctx.stroke();
+
+        // Corner registration brackets ┌ ┐ └ ┘
+        ctx.strokeStyle = PALETTE.accent;
+        ctx.lineWidth = 1.5;
+        const armLen = 8;
+        // top-left
+        ctx.beginPath();
+        ctx.moveTo(px + 4, py + 4 + armLen);
+        ctx.lineTo(px + 4, py + 4);
+        ctx.lineTo(px + 4 + armLen, py + 4);
+        ctx.stroke();
+        // top-right
+        ctx.beginPath();
+        ctx.moveTo(px + pw - 4 - armLen, py + 4);
+        ctx.lineTo(px + pw - 4, py + 4);
+        ctx.lineTo(px + pw - 4, py + 4 + armLen);
+        ctx.stroke();
+        // bottom-left
+        ctx.beginPath();
+        ctx.moveTo(px + 4, py + ph - 4 - armLen);
+        ctx.lineTo(px + 4, py + ph - 4);
+        ctx.lineTo(px + 4 + armLen, py + ph - 4);
+        ctx.stroke();
+        // bottom-right
+        ctx.beginPath();
+        ctx.moveTo(px + pw - 4 - armLen, py + ph - 4);
+        ctx.lineTo(px + pw - 4, py + ph - 4);
+        ctx.lineTo(px + pw - 4, py + ph - 4 - armLen);
+        ctx.stroke();
+
+        ctx.font = "8px var(--font-geist-mono), monospace";
+        ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(154, 166, 182, 0.55)";
+        ctx.fillText(key === "left-placemat" ? "ZONE 1 · LEFT PLACE" : "ZONE 2 · RIGHT PLACE", px + pw / 2, py + ph - 8);
       }
+
+      // 3. STAGING TRAY: Recessed metallic staging bay behind the table
       const tray = ZONES.tray;
-      ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = PALETTE.ink3;
-      roundedRect(ctx, X(tray.x - 0.3), Y(tray.y - 0.08), 0.6 * scale, 0.16 * scale, 4);
+      const trayW = 0.64 * scale;
+      const trayH = 0.18 * scale;
+      const trayX = X(tray.x - 0.32);
+      const trayY = Y(tray.y - 0.09);
+
+      ctx.fillStyle = PALETTE.trayFill;
+      roundedRect(ctx, trayX, trayY, trayW, trayH, 5);
+      ctx.fill();
+
+      ctx.strokeStyle = PALETTE.trayBorder;
+      ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = PALETTE.ink3;
+
+      // Subtle inner depth line
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.4)";
+      ctx.lineWidth = 1;
+      roundedRect(ctx, trayX + 1, trayY + 1, trayW - 2, trayH - 2, 4);
+      ctx.stroke();
+
       ctx.font = "9px var(--font-geist-mono), monospace";
       ctx.textAlign = "center";
-      ctx.fillText("TRAY", X(tray.x), Y(tray.y - 0.12));
+      ctx.fillStyle = PALETTE.ink3;
+      ctx.fillText("STAGING TRAY · OFF-TABLE ZONE", X(tray.x), trayY + trayH / 2 + 3);
 
-      // objects: per-class shapes with soft shadows; duplicates numbered; hazards captioned
-      const familyTotals = new Map<string, number>();
-      const familySeen = new Map<string, number>();
-      for (const def of OBJECTS) {
-        const st = sim.scene.objects[def.id];
-        if (!st || !st.onTable) continue;
-        familyTotals.set(def.label, (familyTotals.get(def.label) ?? 0) + 1);
+      // 4. OBJECT RENDERING & SMART NON-COLLIDING LABELS
+      // Pre-compute object visibility and coordinates
+      interface RenderableObject {
+        id: string;
+        label: string;
+        safety: string;
+        px: number;
+        py: number;
+        r: number;
+        st: (typeof sim.scene.objects)[string];
       }
-      const drawnLabels: Array<{ x: number; y: number }> = [];
+
+      const activeObjects: RenderableObject[] = [];
       for (const def of OBJECTS) {
         const st = sim.scene.objects[def.id];
         if (!st || !st.onTable) continue;
-        const px = X(st.x);
-        const py = Y(st.y);
-        const r = 0.045 * scale;
-        // soft ground shadow
+        activeObjects.push({
+          id: def.id,
+          label: def.label,
+          safety: def.safety,
+          px: X(st.x),
+          py: Y(st.y),
+          r: 0.045 * scale,
+          st,
+        });
+      }
+
+      // Draw object shapes first
+      for (const obj of activeObjects) {
+        const { label, px, py, r, st, safety } = obj;
+
+        // Ground shadow
         ctx.fillStyle = PALETTE.shadow;
         ctx.beginPath();
-        ctx.ellipse(px + 2, py + 4, r * 1.05, r * 0.6, 0, 0, Math.PI * 2);
+        ctx.ellipse(px + 2, py + 4, r * 1.05, r * 0.58, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        const seen = (familySeen.get(def.label) ?? 0) + 1;
-        familySeen.set(def.label, seen);
-        const numbered = (familyTotals.get(def.label) ?? 0) > 1 ? `${def.label} ${seen}` : def.label;
-
-        switch (def.label) {
+        switch (label) {
           case "plate": {
-            ctx.fillStyle = PALETTE.ceramic;
+            // High-craft ceramic plate with depth gradient and double rim
+            const plateGrad = ctx.createRadialGradient(px - r * 0.2, py - r * 0.2, r * 0.1, px, py, r);
+            plateGrad.addColorStop(0, "#ffffff");
+            plateGrad.addColorStop(0.7, PALETTE.ceramic);
+            plateGrad.addColorStop(1, PALETTE.ceramicRim);
+            ctx.fillStyle = plateGrad;
             ctx.beginPath();
             ctx.arc(px, py, r, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = PALETTE.ceramicRim;
-            ctx.lineWidth = 1.5;
+
+            ctx.strokeStyle = "rgba(43, 54, 72, 0.4)";
+            ctx.lineWidth = 1.2;
             ctx.stroke();
+
+            // Inner rim
+            ctx.strokeStyle = "rgba(154, 166, 182, 0.6)";
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.arc(px, py, r * 0.55, 0, Math.PI * 2);
+            ctx.arc(px, py, r * 0.62, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Specular highlight arc
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(px, py, r * 0.88, -2.4, -1.2);
             ctx.stroke();
             break;
           }
           case "glass": {
+            // Translucent crystal tumbler with refractions
             ctx.fillStyle = PALETTE.glassFill;
             ctx.beginPath();
-            ctx.arc(px, py, r * 0.92, 0, Math.PI * 2);
+            ctx.arc(px, py, r * 0.9, 0, Math.PI * 2);
             ctx.fill();
+
             ctx.strokeStyle = PALETTE.glassRim;
             ctx.lineWidth = 1.5;
             ctx.stroke();
-            ctx.strokeStyle = "rgba(255,255,255,0.5)";
+
+            // Inner reflection ring
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.55)";
+            ctx.lineWidth = 1.2;
             ctx.beginPath();
-            ctx.arc(px, py, r * 0.55, -2.3, -1.2);
+            ctx.arc(px, py, r * 0.65, -2.6, -1.0);
             ctx.stroke();
+
+            // Center base highlight
+            ctx.fillStyle = "rgba(83, 213, 232, 0.25)";
+            ctx.beginPath();
+            ctx.arc(px, py, r * 0.35, 0, Math.PI * 2);
+            ctx.fill();
             break;
           }
           case "bowl": {
-            ctx.fillStyle = PALETTE.ceramic;
+            // Ceramic soup bowl with interior concave shading
+            const bowlGrad = ctx.createRadialGradient(px, py, r * 0.2, px, py, r);
+            bowlGrad.addColorStop(0, "#cbd5e1");
+            bowlGrad.addColorStop(0.85, PALETTE.ceramic);
+            bowlGrad.addColorStop(1, PALETTE.ceramicRim);
+            ctx.fillStyle = bowlGrad;
             ctx.beginPath();
-            ctx.arc(px, py, r, Math.PI, 0);
-            ctx.closePath();
+            ctx.arc(px, py, r * 0.95, 0, Math.PI * 2);
             ctx.fill();
+
             ctx.strokeStyle = PALETTE.ceramicRim;
-            ctx.lineWidth = 1.5;
+            ctx.lineWidth = 2;
             ctx.stroke();
+
+            // Inner depth basin
+            ctx.fillStyle = "rgba(15, 23, 42, 0.12)";
+            ctx.beginPath();
+            ctx.arc(px, py, r * 0.7, 0, Math.PI * 2);
+            ctx.fill();
             break;
           }
           case "knife": {
+            // Precision chef blade with metallic bevel
             ctx.strokeStyle = PALETTE.bladeFill;
+            ctx.lineWidth = 3.5;
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.moveTo(px - r * 0.9, py + r * 0.6);
+            ctx.lineTo(px + r * 0.3, py - r * 0.6);
+            ctx.stroke();
+
+            // Handle
+            ctx.strokeStyle = PALETTE.panHandle;
             ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.moveTo(px - r, py + r * 0.6);
-            ctx.lineTo(px + r * 0.4, py - r * 0.6);
+            ctx.moveTo(px + r * 0.3, py - r * 0.6);
+            ctx.lineTo(px + r * 0.9, py - r * 1.1);
             ctx.stroke();
-            ctx.strokeStyle = PALETTE.metal;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(px + r * 0.4, py - r * 0.6);
-            ctx.lineTo(px + r, py - r);
-            ctx.stroke();
+            ctx.lineCap = "butt";
             break;
           }
           case "fork": {
+            // Polished fork with 3 distinct tines
             ctx.strokeStyle = PALETTE.metal;
             ctx.lineWidth = 2;
+            ctx.lineCap = "round";
             ctx.beginPath();
-            ctx.moveTo(px - r, py + r);
-            ctx.lineTo(px + r * 0.3, py - r * 0.3);
+            ctx.moveTo(px - r * 0.9, py + r * 0.9);
+            ctx.lineTo(px + r * 0.2, py - r * 0.2);
             ctx.stroke();
+
+            // Tines
             for (const t of [-1, 0, 1]) {
               ctx.beginPath();
-              ctx.moveTo(px + r * 0.3, py - r * 0.3);
-              ctx.lineTo(px + r * 0.3 + t * r * 0.35 - r * 0.1, py - r);
+              ctx.moveTo(px + r * 0.2, py - r * 0.2);
+              ctx.lineTo(px + r * 0.2 + t * r * 0.3 - r * 0.1, py - r * 0.85);
               ctx.stroke();
             }
+            ctx.lineCap = "butt";
             break;
           }
           case "spoon": {
+            // Polished dinner spoon
             ctx.strokeStyle = PALETTE.metal;
             ctx.lineWidth = 2;
+            ctx.lineCap = "round";
             ctx.beginPath();
-            ctx.moveTo(px - r, py + r);
+            ctx.moveTo(px - r * 0.9, py + r * 0.9);
             ctx.lineTo(px + r * 0.2, py - r * 0.2);
             ctx.stroke();
+
+            // Oval bowl
             ctx.fillStyle = PALETTE.metal;
             ctx.beginPath();
-            ctx.ellipse(px + r * 0.45, py - r * 0.45, r * 0.45, r * 0.3, -0.7, 0, Math.PI * 2);
+            ctx.ellipse(px + r * 0.45, py - r * 0.45, r * 0.42, r * 0.28, -0.7, 0, Math.PI * 2);
             ctx.fill();
+            ctx.lineCap = "butt";
             break;
           }
           case "napkin": {
+            // Folded cloth napkin
             ctx.fillStyle = PALETTE.cloth;
-            roundedRect(ctx, px - r, py - r * 0.8, r * 2, r * 1.6, 2);
+            roundedRect(ctx, px - r * 0.9, py - r * 0.7, r * 1.8, r * 1.4, 3);
             ctx.fill();
-            ctx.strokeStyle = PALETTE.lineStrong;
+
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
             ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Fold crease line
+            ctx.strokeStyle = "rgba(0, 0, 0, 0.25)";
+            ctx.beginPath();
+            ctx.moveTo(px - r * 0.9, py);
+            ctx.lineTo(px + r * 0.9, py);
             ctx.stroke();
             break;
           }
           case "candle": {
+            // Pillar wax candle with glowing flame and ambient heat halo
             ctx.fillStyle = PALETTE.wax;
-            roundedRect(ctx, px - r * 0.55, py - r, r * 1.1, r * 2, 2);
+            roundedRect(ctx, px - r * 0.5, py - r * 0.8, r * 1.0, r * 1.6, 2);
             ctx.fill();
-            ctx.strokeStyle = PALETTE.lineStrong;
+            ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
             ctx.stroke();
+
             if (st.lit) {
-              const flick = Math.sin(now / 140) * r * 0.12;
+              const flick = Math.sin(now / 120) * r * 0.1;
+              // Ambient warm table glow
+              const flameGlow = ctx.createRadialGradient(px, py - r * 1.4, 2, px, py - r * 1.4, r * 1.8);
+              flameGlow.addColorStop(0, "rgba(245, 158, 11, 0.35)");
+              flameGlow.addColorStop(1, "rgba(245, 158, 11, 0)");
+              ctx.fillStyle = flameGlow;
+              ctx.beginPath();
+              ctx.arc(px, py - r * 1.4, r * 1.8, 0, Math.PI * 2);
+              ctx.fill();
+
+              // Outer flame
               ctx.fillStyle = PALETTE.flame;
               ctx.beginPath();
-              ctx.ellipse(px + flick, py - r * 1.5, r * 0.32, r * 0.6, 0, 0, Math.PI * 2);
+              ctx.ellipse(px + flick, py - r * 1.4, r * 0.32, r * 0.58, 0, 0, Math.PI * 2);
               ctx.fill();
-              ctx.fillStyle = "rgba(255,255,255,0.65)";
+
+              // Inner hot white core
+              ctx.fillStyle = "#ffffff";
               ctx.beginPath();
-              ctx.ellipse(px + flick, py - r * 1.45, r * 0.12, r * 0.28, 0, 0, Math.PI * 2);
+              ctx.ellipse(px + flick, py - r * 1.35, r * 0.12, r * 0.26, 0, 0, Math.PI * 2);
               ctx.fill();
             }
             break;
           }
           case "saucepan": {
+            // Heavy stainless / cast-iron saucepan
             ctx.fillStyle = PALETTE.panBody;
             ctx.beginPath();
             ctx.arc(px, py, r, 0, Math.PI * 2);
             ctx.fill();
+
             ctx.strokeStyle = PALETTE.lineStrong;
+            ctx.lineWidth = 1.5;
             ctx.stroke();
+
+            // Insulated handle
             ctx.strokeStyle = PALETTE.panHandle;
-            ctx.lineWidth = 3;
+            ctx.lineWidth = 4;
+            ctx.lineCap = "round";
             ctx.beginPath();
             ctx.moveTo(px + r * 0.8, py - r * 0.5);
             ctx.lineTo(px + r * 1.8, py - r * 1.1);
             ctx.stroke();
+            ctx.lineCap = "butt";
+
+            // Animated thermal emission waves if hot
             if (st.hot) {
-              ctx.strokeStyle = "rgba(226,106,99,0.5)";
+              const pulsePhase = (now % 1600) / 1600;
+              ctx.strokeStyle = `rgba(226, 106, 99, ${0.7 * (1 - pulsePhase)})`;
               ctx.lineWidth = 1.5;
-              for (let s = 0; s < 2; s++) {
-                ctx.beginPath();
-                ctx.arc(px, py, r * (1.25 + s * 0.28), -2.6, -0.5);
-                ctx.stroke();
-              }
+              ctx.beginPath();
+              ctx.arc(px, py, r * (1.2 + pulsePhase * 0.5), -2.6, -0.5);
+              ctx.stroke();
+
+              const pulsePhase2 = ((now + 800) % 1600) / 1600;
+              ctx.strokeStyle = `rgba(226, 106, 99, ${0.7 * (1 - pulsePhase2)})`;
+              ctx.beginPath();
+              ctx.arc(px, py, r * (1.2 + pulsePhase2 * 0.5), -2.6, -0.5);
+              ctx.stroke();
             }
             break;
           }
           case "teapot": {
+            // Polished brass teapot
             ctx.fillStyle = PALETTE.brass;
             ctx.beginPath();
-            ctx.arc(px, py, r, 0, Math.PI * 2);
+            ctx.arc(px, py, r * 0.95, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = PALETTE.lineStrong;
+
+            ctx.strokeStyle = "rgba(0, 0, 0, 0.3)";
+            ctx.lineWidth = 1.5;
             ctx.stroke();
+
+            // Spout
             ctx.fillStyle = PALETTE.brass;
             ctx.beginPath();
             ctx.moveTo(px + r * 0.6, py - r * 0.3);
             ctx.lineTo(px + r * 1.5, py - r * 0.8);
-            ctx.lineTo(px + r * 1.5, py - r * 0.2);
+            ctx.lineTo(px + r * 1.4, py - r * 0.2);
             ctx.closePath();
             ctx.fill();
-            ctx.strokeStyle = PALETTE.metal;
-            ctx.lineWidth = 2;
+
+            // Handle
+            ctx.strokeStyle = PALETTE.panHandle;
+            ctx.lineWidth = 2.5;
             ctx.beginPath();
-            ctx.arc(px - r * 0.9, py, r * 0.7, -Math.PI / 2, Math.PI / 2);
+            ctx.arc(px - r * 0.85, py, r * 0.65, -Math.PI / 2, Math.PI / 2);
             ctx.stroke();
             break;
           }
@@ -299,31 +497,171 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
           }
         }
 
-        // caption above the object — numbered duplicates, state text, never color alone
-        ctx.font = "10px var(--font-geist-mono), monospace";
-        let caption = numbered;
-        if (def.label === "saucepan" && st.hot) caption = `${numbered} · HOT`;
-        if (def.label === "candle" && st.lit) caption = `${numbered} · LIT`;
-        if (def.label === "knife") caption = `${numbered} · BLADE`;
-        if (def.safety === "fragile") caption = `${numbered} · careful`;
-        let ly = py - r * 2.1;
-        while (drawnLabels.some((p) => Math.abs(p.x - px) < 58 && Math.abs(p.y - ly) < 11)) {
-          ly -= 11;
-        }
-        drawnLabels.push({ x: px, y: ly });
-        ctx.fillStyle = PALETTE.ink2;
-        ctx.textAlign = "center";
-        ctx.fillText(caption, px, ly);
+        // Active focus target ring if currently held by an arm
         if (st.heldBy) {
           ctx.strokeStyle = PALETTE.accent;
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 3]);
           ctx.beginPath();
           ctx.arc(px, py, r * 1.45, 0, Math.PI * 2);
           ctx.stroke();
+          ctx.setLineDash([]);
         }
       }
 
-      // arms: base plate, two links, joints, gripper jaws
+      // SMART CLUSTER & COLLISION-FREE LABEL BADGES
+      interface LabelBadge {
+        text: string;
+        tone: "safe" | "fragile" | "hot" | "flame" | "sharp";
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+      }
+
+      const badges: LabelBadge[] = [];
+      const handled = new Set<string>();
+
+      ctx.font = "10px var(--font-geist-mono), monospace";
+
+      for (let i = 0; i < activeObjects.length; i++) {
+        const objA = activeObjects[i];
+        if (handled.has(objA.id)) continue;
+
+        // Check if there are duplicate objects closely stacked (within 0.08m)
+        const cluster = [objA];
+        for (let j = i + 1; j < activeObjects.length; j++) {
+          const objB = activeObjects[j];
+          if (objA.label === objB.label && Math.hypot(objA.px - objB.px, objA.py - objB.py) < 0.08 * scale) {
+            cluster.push(objB);
+            handled.add(objB.id);
+          }
+        }
+        handled.add(objA.id);
+
+        let labelText = "";
+        let tone: LabelBadge["tone"] = "safe";
+
+        if (cluster.length > 1) {
+          // Cluster tag
+          const count = cluster.length;
+          if (objA.label === "plate") labelText = `${count}× Plates (ceramic)`;
+          else if (objA.label === "glass") {
+            labelText = `${count}× Glasses · fragile`;
+            tone = "fragile";
+          } else if (objA.label === "napkin") labelText = `${count}× Napkins`;
+          else labelText = `${count}× ${objA.label}s`;
+        } else {
+          // Single item tag
+          if (objA.label === "saucepan" && objA.st.hot) {
+            labelText = "Saucepan · HOT 85°C";
+            tone = "hot";
+          } else if (objA.label === "candle" && objA.st.lit) {
+            labelText = "Candle · LIT FLAME";
+            tone = "flame";
+          } else if (objA.label === "knife") {
+            labelText = "Knife · BLADE";
+            tone = "sharp";
+          } else if (objA.safety === "fragile") {
+            labelText = `${objA.label} · fragile`;
+            tone = "fragile";
+          } else {
+            labelText = objA.label;
+          }
+        }
+
+        // Compute centroid of the cluster
+        const avgX = cluster.reduce((sum, o) => sum + o.px, 0) / cluster.length;
+        const avgY = cluster.reduce((sum, o) => sum + o.py, 0) / cluster.length;
+
+        const textMetrics = ctx.measureText(labelText);
+        const bw = textMetrics.width + 16;
+        const bh = 18;
+
+        // Default position: above the object unless near top of table
+        let targetY = avgY - objA.r - 14;
+        if (avgY < tableY + 50) {
+          targetY = avgY + objA.r + 14;
+        }
+
+        badges.push({
+          text: labelText,
+          tone,
+          x: avgX - bw / 2,
+          y: targetY - bh / 2,
+          w: bw,
+          h: bh,
+        });
+      }
+
+      // Simple repulsion relaxation to eliminate all label collisions
+      for (let iter = 0; iter < 8; iter++) {
+        for (let a = 0; a < badges.length; a++) {
+          for (let b = a + 1; b < badges.length; b++) {
+            const b1 = badges[a];
+            const b2 = badges[b];
+            const overlapX = Math.min(b1.x + b1.w, b2.x + b2.w) - Math.max(b1.x, b2.x);
+            const overlapY = Math.min(b1.y + b1.h, b2.y + b2.h) - Math.max(b1.y, b2.y);
+            if (overlapX > 0 && overlapY > 0) {
+              // Overlap exists: push vertically
+              const pushY = (overlapY + 4) / 2;
+              if (b1.y < b2.y) {
+                b1.y -= pushY;
+                b2.y += pushY;
+              } else {
+                b1.y += pushY;
+                b2.y -= pushY;
+              }
+            }
+          }
+        }
+      }
+
+      // Render the refined badges
+      for (const badge of badges) {
+        // Pill background with hairline border
+        ctx.fillStyle = PALETTE.labelBg;
+        roundedRect(ctx, badge.x, badge.y, badge.w, badge.h, 4);
+        ctx.fill();
+
+        let borderColor = PALETTE.labelBorder;
+        let dotColor = PALETTE.ink3;
+        let textColor = PALETTE.ink2;
+
+        if (badge.tone === "hot") {
+          borderColor = "rgba(226, 106, 99, 0.4)";
+          dotColor = PALETTE.deny;
+          textColor = "#fca5a5";
+        } else if (badge.tone === "flame") {
+          borderColor = "rgba(229, 177, 68, 0.4)";
+          dotColor = PALETTE.warn;
+          textColor = "#fde047";
+        } else if (badge.tone === "fragile") {
+          borderColor = "rgba(83, 213, 232, 0.35)";
+          dotColor = PALETTE.accent;
+          textColor = "#a5f3fc";
+        } else if (badge.tone === "sharp") {
+          borderColor = "rgba(229, 177, 68, 0.3)";
+          dotColor = PALETTE.warn;
+        }
+
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Status pip
+        ctx.fillStyle = dotColor;
+        ctx.beginPath();
+        ctx.arc(badge.x + 8, badge.y + badge.h / 2, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Label text
+        ctx.fillStyle = textColor;
+        ctx.textAlign = "left";
+        ctx.fillText(badge.text, badge.x + 14, badge.y + badge.h / 2 + 3.5);
+      }
+
+      // 5. ARTICULATED INDUSTRIAL ROBOT ARMS
       for (const arm of ["left", "right"] as const) {
         const v = sim.arms[arm].visual;
         const anchor = ARM_ANCHOR[arm];
@@ -340,93 +678,237 @@ export function TableCanvas({ simRef, phase, activeArm, pulses }: Props) {
         const ex = mx + (-dy / len) * h;
         const ey = my + (dx / len) * h;
         const active = arm === armRef.current && phaseRef.current !== "idle";
-        // base plate
+
+        // Heavy base pedestal
         ctx.fillStyle = PALETTE.raised;
-        roundedRect(ctx, ax - 14, ay - 8, 28, 16, 3);
+        roundedRect(ctx, ax - 18, ay - 10, 36, 20, 4);
         ctx.fill();
-        ctx.strokeStyle = PALETTE.lineStrong;
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = PALETTE.tableRim;
+        ctx.lineWidth = 1.5;
         ctx.stroke();
-        // links
-        ctx.strokeStyle = active ? PALETTE.accent : PALETTE.ink2;
-        ctx.lineWidth = 4;
+
+        // Base mounting bolts
+        ctx.fillStyle = PALETTE.ink3;
+        for (const bx of [-12, 12]) {
+          for (const by of [-5, 5]) {
+            ctx.beginPath();
+            ctx.arc(ax + bx, ay + by, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        // Arm Links: Dual-segment robotic limbs with metallic thickness
+        // Link 1: Shoulder -> Elbow
+        ctx.strokeStyle = PALETTE.armMetal;
+        ctx.lineWidth = 7;
         ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(ax, ay);
         ctx.lineTo(ex, ey);
+        ctx.stroke();
+
+        // Center groove on Link 1
+        ctx.strokeStyle = active ? PALETTE.accent : PALETTE.armJoint;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(ex, ey);
+        ctx.stroke();
+
+        // Link 2: Elbow -> Wrist
+        ctx.strokeStyle = PALETTE.armMetal;
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(ex, ey);
+        ctx.lineTo(gx, gy);
+        ctx.stroke();
+
+        // Center groove on Link 2
+        ctx.strokeStyle = active ? PALETTE.accent : PALETTE.armJoint;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(ex, ey);
         ctx.lineTo(gx, gy);
         ctx.stroke();
         ctx.lineCap = "butt";
-        // elbow + shoulder joints
-        ctx.fillStyle = active ? PALETTE.accent : PALETTE.ink3;
+
+        // Servo Elbow Joint with LED status ring
+        ctx.fillStyle = PALETTE.armJoint;
         ctx.beginPath();
-        ctx.arc(ex, ey, 4, 0, Math.PI * 2);
+        ctx.arc(ex, ey, 6, 0, Math.PI * 2);
         ctx.fill();
-        ctx.beginPath();
-        ctx.arc(ax, ay, 6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.font = "9px var(--font-geist-mono), monospace";
-        ctx.textAlign = "center";
-        ctx.fillStyle = PALETTE.ink3;
-        ctx.fillText(arm === "left" ? "ARM L" : "ARM R", ax, ay + 22);
-        // gripper jaws
-        const open = (1 - v.grip) * 6 + 2;
-        ctx.strokeStyle = PALETTE.ink;
+
+        ctx.strokeStyle = active
+          ? phaseRef.current === "snubbed"
+            ? PALETTE.deny
+            : phaseRef.current === "payout"
+              ? PALETTE.ok
+              : PALETTE.warn
+          : PALETTE.accent;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(gx - open, gy - 4);
-        ctx.lineTo(gx - open, gy + 4);
-        ctx.moveTo(gx + open, gy - 4);
-        ctx.lineTo(gx + open, gy + 4);
+        ctx.arc(ex, ey, 3.5, 0, Math.PI * 2);
         ctx.stroke();
-        ctx.fillStyle = PALETTE.ink;
+
+        // Shoulder Joint
+        ctx.fillStyle = PALETTE.armJoint;
         ctx.beginPath();
-        ctx.arc(gx, gy, 2.5, 0, Math.PI * 2);
+        ctx.arc(ax, ay, 7, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = "9px var(--font-geist-mono), monospace";
+        ctx.textAlign = "center";
+        ctx.fillStyle = active ? PALETTE.accent : PALETTE.ink3;
+        ctx.fillText(arm === "left" ? "ROBOT ARM L" : "ROBOT ARM R", ax, ay - 14);
+
+        // Articulated Gripper Jaws
+        const gripOpen = (1 - v.grip) * 7 + 2;
+        ctx.strokeStyle = active ? PALETTE.ink : PALETTE.metal;
+        ctx.lineWidth = 2.5;
+
+        // Left jaw
+        ctx.beginPath();
+        ctx.moveTo(gx - gripOpen - 2, gy - 6);
+        ctx.lineTo(gx - gripOpen, gy);
+        ctx.lineTo(gx - gripOpen - 2, gy + 6);
+        ctx.stroke();
+
+        // Right jaw
+        ctx.beginPath();
+        ctx.moveTo(gx + gripOpen + 2, gy - 6);
+        ctx.lineTo(gx + gripOpen, gy);
+        ctx.lineTo(gx + gripOpen + 2, gy + 6);
+        ctx.stroke();
+
+        // Gripper base palm
+        ctx.fillStyle = PALETTE.armJoint;
+        ctx.beginPath();
+        ctx.arc(gx, gy, 4, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      // THE ROPE + BOLLARD — below the front edge of the table
+      // 6. THE BOLLARD & PHYSICAL SAFETY TETHER
       const bx = X(0);
-      const by = Y(TABLE.maxY) + 26;
+      const by = Y(TABLE.maxY) + 32;
       const armNow = armRef.current;
       const ph = phaseRef.current;
-      const ropeColor =
-        ph === "snubbed" ? PALETTE.deny : ph === "held" ? PALETTE.warn : ph === "payout" ? PALETTE.ok : PALETTE.ink3;
-      ctx.fillStyle = PALETTE.raised;
-      roundedRect(ctx, bx - 7, by - 22, 14, 30, 3);
-      ctx.fill();
-      ctx.strokeStyle = ph === "idle" ? PALETTE.lineStrong : ropeColor;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(bx, by - 24, 5, 0, Math.PI * 2);
-      ctx.fillStyle = ph === "idle" ? PALETTE.ink3 : ropeColor;
-      ctx.fill();
-      ctx.font = "9px var(--font-geist-mono), monospace";
-      ctx.fillStyle = PALETTE.ink3;
-      ctx.fillText("BOLLARD", bx, by + 22);
 
-      // rope line: bollard → active arm gripper (wrapped loops while held/snubbed)
+      const ropeColor =
+        ph === "snubbed"
+          ? PALETTE.ropeSnubbed
+          : ph === "held"
+            ? PALETTE.ropeHeld
+            : ph === "payout"
+              ? PALETTE.ropePayout
+              : PALETTE.ropeBraided;
+
+      // Heavy Marine / Safety Bollard Body
+      // Base flange
+      ctx.fillStyle = PALETTE.bollardSteel;
+      roundedRect(ctx, bx - 14, by - 14, 28, 28, 5);
+      ctx.fill();
+      ctx.strokeStyle = PALETTE.bollardRim;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Flange bolts
+      ctx.fillStyle = PALETTE.ink3;
+      for (const ox of [-9, 9]) {
+        for (const oy of [-9, 9]) {
+          ctx.beginPath();
+          ctx.arc(bx + ox, by + oy, 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Central cylindrical post
+      const postGrad = ctx.createLinearGradient(bx - 8, by, bx + 8, by);
+      postGrad.addColorStop(0, PALETTE.bollardSteel);
+      postGrad.addColorStop(0.5, PALETTE.bollardCap);
+      postGrad.addColorStop(1, PALETTE.bollardSteel);
+      ctx.fillStyle = postGrad;
+      roundedRect(ctx, bx - 8, by - 24, 16, 26, 3);
+      ctx.fill();
+
+      // Cross cleat horns
+      ctx.fillStyle = PALETTE.bollardCap;
+      roundedRect(ctx, bx - 16, by - 16, 32, 6, 2);
+      ctx.fill();
+      ctx.strokeStyle = PALETTE.bollardRim;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Optical Safety Status Beacon on Bollard
+      const beaconColor =
+        ph === "snubbed"
+          ? PALETTE.deny
+          : ph === "held"
+            ? PALETTE.warn
+            : ph === "payout"
+              ? PALETTE.ok
+              : PALETTE.accent;
+
+      // Soft glow around beacon
+      const beaconGlow = ctx.createRadialGradient(bx, by - 26, 1, bx, by - 26, 14);
+      beaconGlow.addColorStop(0, beaconColor);
+      beaconGlow.addColorStop(1, "transparent");
+      ctx.fillStyle = beaconGlow;
+      ctx.beginPath();
+      ctx.arc(bx, by - 26, 14, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Beacon dome
+      ctx.fillStyle = beaconColor;
+      ctx.beginPath();
+      ctx.arc(bx, by - 26, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.font = "9px var(--font-geist-mono), monospace";
+      ctx.textAlign = "center";
+      ctx.fillStyle = beaconColor;
+      ctx.fillText(
+        ph === "idle"
+          ? "SAFETY BOLLARD · ARMED"
+          : ph === "held"
+            ? "TENSION HELD · EVALUATING"
+            : ph === "snubbed"
+              ? "SNUBBED · POLICY DENIAL"
+              : "PAYOUT · ACTION RELEASED",
+        bx,
+        by + 26
+      );
+
+      // The Safety Tether (Braided Rope): Bollard -> Active Arm Gripper
       if (armNow && ph !== "idle") {
         const v = sim.arms[armNow].visual;
         const gx = X(v.pos.x);
         const gy = Y(v.pos.y);
+
         ctx.strokeStyle = ropeColor;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
+
         ctx.beginPath();
-        ctx.moveTo(bx, by - 18);
+        ctx.moveTo(bx, by - 20);
+
         if (ph === "held" || ph === "snubbed") {
-          ctx.bezierCurveTo(bx + 16, by - 20, bx + 16, by - 10, bx, by - 10);
-          ctx.bezierCurveTo(bx - 16, by - 8, bx - 16, by + 2, bx, by + 2);
+          // 3 snubbing turns wrapped tightly around the post drum
+          ctx.bezierCurveTo(bx + 18, by - 22, bx + 18, by - 12, bx, by - 12);
+          ctx.bezierCurveTo(bx - 18, by - 10, bx - 18, by + 2, bx, by + 2);
+          ctx.bezierCurveTo(bx + 16, by + 4, bx + 16, by + 12, bx, by + 12);
+
+          // Taut tension line to arm with slight catenary vibration
+          const vib = ph === "snubbed" ? Math.sin(now / 40) * 3 : 0;
+          ctx.quadraticCurveTo((bx + gx) / 2 + vib, (by + gy) / 2 + 15, gx, gy + 4);
+        } else {
+          // Smooth payout curve flowing freely to the active gripper
+          ctx.quadraticCurveTo((bx + gx) / 2, (by + gy) / 2 + 20, gx, gy + 4);
         }
-        ctx.quadraticCurveTo((bx + gx) / 2, (by + gy) / 2 + 30, gx, gy + 6);
         ctx.stroke();
-        if (ph === "snubbed") {
-          ctx.fillStyle = PALETTE.deny;
-          ctx.font = "10px var(--font-geist-mono), monospace";
-          ctx.textAlign = "center";
-          ctx.fillText("HELD", bx + 34, by - 14);
-        }
+
+        // Braided secondary highlight line
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
       }
 
       // pulses (destination / blocked markers)

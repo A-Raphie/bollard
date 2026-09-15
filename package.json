@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "qa": "bun run scripts/qa-cli.ts suite"
   },
   "dependencies": {
     "@speechmatics/auth": "^0.1.0",

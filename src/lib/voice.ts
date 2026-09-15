@@ -14,9 +14,8 @@ export interface VoiceCallbacks {
   onSilence?: () => void; // fired once when 5s pass with no audible input
 }
 
-const SILENCE_RMS = 0.01;    // below this the input counts as silent
-const SILENCE_NOTIFY_MS = 5000;
-const SILENCE_STOP_MS = 15000;
+const SILENCE_RMS = 0.0008;   // calibrated threshold for speech vs ambient silence
+const SILENCE_NOTIFY_MS = 8000;
 
 function floatToS16(input: Float32Array): ArrayBuffer {
   const out = new DataView(new ArrayBuffer(input.length * 2));
@@ -45,9 +44,10 @@ function resampleTo16k(input: Float32Array, inRate: number): Float32Array {
 }
 
 export class VoiceSession {
-  private client = new RealtimeClient();
+  private client: RealtimeClient | null = null;
   private ctx: AudioContext | null = null;
   private stream: MediaStream | null = null;
+  private source: MediaStreamAudioSourceNode | null = null;
   private processor: ScriptProcessorNode | null = null;
   private sink: GainNode | null = null;
   private state: VoiceState = "idle";
@@ -59,6 +59,10 @@ export class VoiceSession {
   private audioBusy = false;
   private stopping = false;
   private captureProbe: ReturnType<typeof setTimeout> | null = null;
+  private transcriptBuffer = "";
+  private transcriptTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastConf: number | null = null;
+  private audioQueue: ArrayBuffer[] = [];
 
   private setState(s: VoiceState, detail?: string) {
     this.state = s;
@@ -69,11 +73,83 @@ export class VoiceSession {
     return this.state === "listening" || this.state === "connecting";
   }
 
+  private flushTranscript() {
+    if (this.transcriptTimer) {
+      clearTimeout(this.transcriptTimer);
+      this.transcriptTimer = null;
+    }
+    const text = this.transcriptBuffer.trim();
+    this.transcriptBuffer = "";
+    if (text) {
+      this.cbs.onFinal?.(text, this.lastConf);
+    }
+  }
+
   async start(cbs: VoiceCallbacks): Promise<void> {
     if (this.running) return;
     this.cbs = cbs;
     this.setState("connecting");
+    this.transcriptBuffer = "";
+    this.audioQueue = [];
+    this.lastConf = null;
+    this.frame = 0;
+    if (this.transcriptTimer) {
+      clearTimeout(this.transcriptTimer);
+      this.transcriptTimer = null;
+    }
 
+    // 1. CRITICAL: Acquire mic and initialize AudioContext IMMEDIATELY within the
+    // user gesture activation tick. Awaiting network fetch('/api/token') first expires
+    // the user activation window in Chrome/Safari, causing suspended AudioContexts and silent mics.
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      this.ctx = new AudioCtx();
+      if (this.ctx.state === "suspended") {
+        await this.ctx.resume();
+      }
+
+      this.ctx.onstatechange = () => {
+        if ((this.state === "listening" || this.state === "connecting") && this.ctx?.state === "suspended") {
+          void this.ctx.resume().catch(() => {});
+        }
+      };
+
+      // Anchor source node to instance and window to prevent V8 GC sweep from killing mic input
+      this.source = this.ctx.createMediaStreamSource(this.stream);
+      if (typeof window !== "undefined") {
+        (window as unknown as { __bollardSource?: MediaStreamAudioSourceNode }).__bollardSource = this.source;
+        (window as unknown as { __bollardCtx?: AudioContext }).__bollardCtx = this.ctx;
+      }
+
+      this.processor = this.ctx.createScriptProcessor(4096, 1, 1);
+      this.lastSoundAt = performance.now();
+      this.silenceNotified = false;
+
+      this.processor.onaudioprocess = (e) => {
+        if (this.stopping) return;
+        this.handleAudio(e);
+      };
+
+      this.sink = this.ctx.createGain();
+      this.sink.gain.value = 0; // silent sink: ScriptProcessor needs a destination to pump
+      this.source.connect(this.processor);
+      this.processor.connect(this.sink);
+      this.sink.connect(this.ctx.destination);
+    } catch (e) {
+      await this.stop();
+      this.setState("error", e instanceof Error ? e.message : "Microphone access denied");
+      return;
+    }
+
+    // 2. Obtain JWT from server
     let jwt: string;
     try {
       const res = await fetch("/api/token", { method: "POST" });
@@ -81,25 +157,53 @@ export class VoiceSession {
       if (!res.ok || !data.jwt) throw new Error(data.error ?? "Token endpoint failed");
       jwt = data.jwt;
     } catch (e) {
+      await this.stop();
       this.setState("error", e instanceof Error ? e.message : "Token endpoint failed");
       return;
     }
+
+    // 3. Connect Speechmatics RealtimeClient
+    this.client = new RealtimeClient({ url: "wss://global.rt.speechmatics.com/v2" });
 
     this.client.addEventListener("receiveMessage", (evt) => {
       const d = evt.data;
       const meta = "metadata" in d ? (d.metadata as { transcript?: string; confidence?: number } | undefined) : undefined;
       if (d.message === "RecognitionStarted") {
         this.setState("listening");
-        // the pipeline must produce at least one audio callback; if it never
-        // does, try to resume the context once, then fail loudly
-        if (this.captureProbe) clearTimeout(this.captureProbe);
-        this.captureProbe = setTimeout(() => {
-          void this.probeCapture();
-        }, 3500);
+        // Flush any audio buffered while the socket was handshaking
+        if (this.client && this.audioQueue.length > 0) {
+          for (const chunk of this.audioQueue) {
+            try {
+              this.client.sendAudio(chunk);
+            } catch {
+              break;
+            }
+          }
+          this.audioQueue = [];
+        }
       } else if (d.message === "AddPartialTranscript") {
-        if (meta?.transcript) this.cbs.onPartial?.(meta.transcript);
+        if (meta?.transcript) {
+          const live = (this.transcriptBuffer ? this.transcriptBuffer + " " : "") + meta.transcript;
+          this.cbs.onPartial?.(live);
+        }
       } else if (d.message === "AddTranscript") {
-        if (meta?.transcript) this.cbs.onFinal?.(meta.transcript, typeof meta.confidence === "number" ? meta.confidence : null);
+        if (meta?.transcript) {
+          this.transcriptBuffer = (this.transcriptBuffer ? this.transcriptBuffer + " " : "") + meta.transcript.trim();
+          if ("results" in d && Array.isArray(d.results)) {
+            const confs: number[] = [];
+            for (const r of d.results as Array<{ alternatives?: Array<{ confidence?: number }> }>) {
+              const c = r.alternatives?.[0]?.confidence;
+              if (typeof c === "number") confs.push(c);
+            }
+            if (confs.length > 0) {
+              this.lastConf = confs.reduce((a, b) => a + b, 0) / confs.length;
+            }
+          }
+          if (this.transcriptTimer) clearTimeout(this.transcriptTimer);
+          this.transcriptTimer = setTimeout(() => this.flushTranscript(), 650);
+        }
+      } else if (d.message === "EndOfUtterance") {
+        this.flushTranscript();
       } else if (d.message === "Warning") {
         // non-fatal: keep listening
       } else if (d.message === "Error") {
@@ -114,98 +218,22 @@ export class VoiceSession {
           max_delay: 0.7,
           enable_partials: true,
           additional_vocab: DICTIONARY_BOOST,
+          conversation_config: { end_of_utterance_silence_trigger: 0.8 },
         },
         audio_format: { type: "raw", encoding: "pcm_s16le", sample_rate: 16000 },
       });
 
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-      // native device rate; downsample to 16 kHz in JS (forcing the context rate
-      // misbehaves on Safari and some Chromium builds)
-      this.ctx = new AudioContext();
-      if (this.ctx.state === "suspended") {
-        try {
-          await this.ctx.resume();
-        } catch {
-          // surfaced by the capture probe below
-        }
-      }
-      // embedded browsers suspend contexts when the pane hides or the tab
-      // switches: pull it back automatically while a session is live
-      this.ctx.onstatechange = () => {
-        if (this.state === "listening" && this.ctx?.state === "suspended") {
-          void this.ctx.resume().catch(() => {});
-        }
-      };
-      const source = this.ctx.createMediaStreamSource(this.stream);
-      this.processor = this.ctx.createScriptProcessor(4096, 1, 1);
-      this.lastSoundAt = performance.now();
-      this.silenceNotified = false;
-      this.frame = 0;
-      this.processor.onaudioprocess = (e) => {
-        if (this.state !== "listening" || this.audioBusy) return;
-        this.audioBusy = true;
-        void this.handleAudio(e).finally(() => {
-          this.audioBusy = false;
-        });
-      };
-      this.sink = this.ctx.createGain();
-      this.sink.gain.value = 0; // silent sink: ScriptProcessor needs a destination to pump
-      source.connect(this.processor);
-      this.processor.connect(this.sink);
-      this.sink.connect(this.ctx.destination);
-      // never leave a mic streaming unattended
+      if (this.captureProbe) clearTimeout(this.captureProbe);
+      this.captureProbe = setTimeout(() => {
+        void this.probeCapture();
+      }, 4000);
+
       this.watchdog = setTimeout(() => {
         void this.stop();
-      }, 120_000);
-      // dev-only: inject an audio file through the exact STT pipeline (IAB test
-      // environments hand out silent mic tracks; this proves STT + config E2E)
-      if (import.meta.env.DEV) {
-        (window as unknown as { __bollardInjectAudio?: (buf: ArrayBuffer) => Promise<string> }).__bollardInjectAudio =
-          async (buf: ArrayBuffer) => {
-            const res = await fetch("/api/token", { method: "POST" });
-            const { jwt } = (await res.json()) as { jwt: string };
-            const client = new RealtimeClient();
-            const transcript = new Promise<string>((resolve, reject) => {
-              let parts: string[] = [];
-              let settle: ReturnType<typeof setTimeout> | null = null;
-              client.addEventListener("receiveMessage", (evt) => {
-                const d = evt.data;
-                const meta = "metadata" in d ? (d.metadata as { transcript?: string } | undefined) : undefined;
-                if (d.message === "AddTranscript" && meta?.transcript) {
-                  parts.push(meta.transcript);
-                  if (settle) clearTimeout(settle);
-                  settle = setTimeout(() => resolve(parts.join(" ")), 2000);
-                } else if (d.message === "Error") reject(new Error("STT error"));
-              });
-            });
-            await client.start(jwt, {
-              transcription_config: { language: "en", max_delay: 0.7, enable_partials: false },
-              audio_format: { type: "raw", encoding: "pcm_s16le", sample_rate: 16000 },
-            });
-            const pcm = await to16kS16(buf);
-            const chunk = 8192;
-            for (let i = 0; i < pcm.byteLength; i += chunk) {
-              client.sendAudio(pcm.slice(i, i + chunk));
-              await new Promise((r) => setTimeout(r, 120));
-            }
-            client.sendAudio(new ArrayBuffer(8192)); // silence tail to flush the final
-            const text = await Promise.race([
-              transcript,
-              new Promise<string>((_, rej) => setTimeout(() => rej(new Error("STT timeout")), 15000)),
-            ]);
-            try {
-              client.stopRecognition({ noTimeout: true });
-            } catch {
-              // closed
-            }
-            return text;
-          };
-      }
+      }, 180_000);
     } catch (e) {
       await this.stop();
-      this.setState("error", e instanceof Error ? e.message : "Could not open the microphone");
+      this.setState("error", e instanceof Error ? e.message : "Could not start speech recognition");
     }
   }
 
@@ -239,12 +267,27 @@ export class VoiceSession {
     }, 2500);
   }
 
-  private async handleAudio(e: AudioProcessingEvent): Promise<void> {
-    const raw = e.inputBuffer.getChannelData(0);
+  private handleAudio(e: AudioProcessingEvent): void {
+    const buf = e.inputBuffer;
+    const numChannels = buf.numberOfChannels;
+    const ch0 = buf.getChannelData(0);
+    const raw = new Float32Array(ch0.length);
+
+    // If multi-channel input, downmix by averaging; otherwise copy channel 0
+    if (numChannels > 1) {
+      const ch1 = buf.getChannelData(1);
+      for (let i = 0; i < ch0.length; i++) {
+        raw[i] = (ch0[i] + ch1[i]) * 0.5;
+      }
+    } else {
+      raw.set(ch0);
+    }
+
     let sum = 0;
     for (let i = 0; i < raw.length; i++) sum += raw[i] * raw[i];
     const rms = Math.sqrt(sum / raw.length);
     const now = performance.now();
+
     if (rms > SILENCE_RMS) {
       this.lastSoundAt = now;
       this.silenceNotified = false;
@@ -252,16 +295,27 @@ export class VoiceSession {
       this.silenceNotified = true;
       this.cbs.onSilence?.();
     }
-    if (now - this.lastSoundAt > SILENCE_STOP_MS) {
-      const message =
-        "No audio is reaching the microphone. Check the input device (some embedded browsers hand out a silent mic).";
-      await this.stop();
-      this.setState("error", message); // set after stop(), which ends in idle
+
+    if (this.frame++ % 2 === 0) this.cbs.onLevel?.(rms);
+
+    // If still connecting, buffer PCM chunks so words spoken right after clicking are not lost
+    if (this.state === "connecting") {
+      if (this.audioQueue.length < 30) {
+        const pcm = floatToS16(resampleTo16k(raw, this.ctx?.sampleRate ?? 48000));
+        this.audioQueue.push(pcm);
+      }
       return;
     }
-    if (this.frame++ % 2 === 0) this.cbs.onLevel?.(rms);
+
+    // Strictly DO NOT send audio to Speechmatics until state is "listening" (RecognitionStarted received)
+    if (this.state !== "listening" || !this.client) return;
+
     const pcm = floatToS16(resampleTo16k(raw, this.ctx?.sampleRate ?? 48000));
-    this.client.sendAudio(pcm);
+    try {
+      this.client.sendAudio(pcm);
+    } catch {
+      // socket closing or closed
+    }
   }
 
   async stop(): Promise<void> {
@@ -275,17 +329,32 @@ export class VoiceSession {
       clearTimeout(this.captureProbe);
       this.captureProbe = null;
     }
-    try {
-      this.client.stopRecognition({ noTimeout: true });
-    } catch {
-      // already closed
+    if (this.transcriptTimer) {
+      clearTimeout(this.transcriptTimer);
+      this.transcriptTimer = null;
+    }
+    this.transcriptBuffer = "";
+    this.audioQueue = [];
+    if (this.client) {
+      try {
+        this.client.stopRecognition({ noTimeout: true });
+      } catch {
+        // already closed
+      }
+      this.client = null;
     }
     this.processor?.disconnect();
     this.sink?.disconnect();
+    this.source?.disconnect();
     this.stream?.getTracks().forEach((t) => t.stop());
     if (this.ctx && this.ctx.state !== "closed") await this.ctx.close();
+    if (typeof window !== "undefined") {
+      delete (window as unknown as { __bollardSource?: MediaStreamAudioSourceNode }).__bollardSource;
+      delete (window as unknown as { __bollardCtx?: AudioContext }).__bollardCtx;
+    }
     this.processor = null;
     this.sink = null;
+    this.source = null;
     this.stream = null;
     this.ctx = null;
     this.stopping = false;

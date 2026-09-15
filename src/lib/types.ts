@@ -23,6 +23,7 @@ export type ObjectState = {
 
 export type VerdictCode =
   | "OK"
+  | "MIC_CONTROL"
   | "UNKNOWN_OBJECT"
   | "UNKNOWN_VERB"
   | "HAZARD_HOT"

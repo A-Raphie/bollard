@@ -100,7 +100,28 @@ function parseDestination(t: string): Destination | null {
   return null;
 }
 
+export function parseMicCommand(transcript: string): "open" | "close" | null {
+  const t = transcript.trim().toLowerCase().replace(/[.,!?;:]/g, " ").replace(/\s+/g, " ").trim();
+  if (
+    /^(?:open|start|turn on|enable)\s+(?:the\s+)?(?:mic|microphone)$/.test(t) ||
+    /^(?:mic|microphone)\s+on$/.test(t) ||
+    /^(?:start\s+listening|listen|unmute)$/.test(t)
+  ) {
+    return "open";
+  }
+  if (
+    /^(?:close|stop|turn off|disable)\s+(?:the\s+)?(?:mic|microphone)$/.test(t) ||
+    /^(?:mic|microphone)\s+off$/.test(t) ||
+    /^(?:stop\s+listening|mute)$/.test(t)
+  ) {
+    return "close";
+  }
+  return null;
+}
+
 export const DICTIONARY_BOOST = [
   "placemat", "saucepan", "teapot", "napkin", "candlestick", "tumbler",
   "Bollard", "place the plate", "pick up", "off the table",
+  "open mic", "close mic", "open the mic",
 ];
+

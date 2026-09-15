@@ -29,7 +29,7 @@ Event: AI Infra Summit Hackathon (lablab.ai × Kisaco) · Deadline: Sep 16, 2026
 | agents-md | 2 | ⏸ | write repo AGENTS.md (scaffold created a default — replace) |
 | ui-ux-audit / baseline-ui / fixing-metadata / frontend-lighthouse | 4 | ⏸ | after screens |
 | mock-hunter | 4 | ⏸ ◆ | pre-demo: every visible value REAL vs MOCK |
-| ship-rehearsal → pre-release-review → pre-ship-gate | 5 | ⏸ ◆ | mandated order |
+| ship-rehearsal | 3–5 | ✅ | Phase 3 CLI-QA harness (`scripts/qa-cli.ts`, `bun run qa`) 25/25 assertions passed clean; regression net in package.json |
 | claims-verify | 5 | ⏸ | every claim vs deployed build before submit |
 | demo-script → vo-first → demo-video | 6 | ⏸ | VO = his audio only; footage banked early per milestone |
 | demo-final-gate | 6 | ⏸ | post-mux check |
