@@ -42,3 +42,10 @@ next-env.d.ts
 
 # Local Netlify folder
 .netlify
+
+# Demo artifacts & local recordings
+demo/
+demo-take/
+*.vo.txt
+vo.txt
+
