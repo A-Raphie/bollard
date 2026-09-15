@@ -407,9 +407,9 @@ export default function CockpitPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-canvas text-ink">
+    <div className="flex h-screen flex-col overflow-hidden bg-canvas text-ink">
       <SiteHeader active="cockpit" />
-      <main className="grid flex-1 grid-cols-[320px_1fr_360px] gap-3 overflow-hidden p-3 max-[1100px]:grid-cols-1">
+      <main className="grid min-h-0 flex-1 grid-cols-[320px_1fr_360px] gap-3 overflow-hidden p-3 max-[1100px]:grid-cols-1">
         {/* VOICE & COMMAND INPUT (SRC 1 / SRC 2) */}
         <section className="panel flex min-h-0 flex-col gap-3 p-3.5">
           {/* Channel Header */}
@@ -650,7 +650,7 @@ export default function CockpitPage() {
         </section>
 
         {/* CRYPTOGRAPHIC AUDIT CHAIN (RECEIPTS) */}
-        <section className="panel flex min-h-0 flex-col gap-2.5 p-3.5">
+        <section className="panel flex min-h-0 flex-col gap-2.5 overflow-hidden p-3.5">
           <div className="flex items-center justify-between border-b border-line pb-2.5">
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-ok" />
@@ -701,10 +701,14 @@ export default function CockpitPage() {
                     <span className="number font-mono text-[10px] text-ink-3 shrink-0">#{String(r.serial).padStart(3, "0")}</span>
                     <span
                       className={`annunciator px-1.5 py-0.5 text-[9px] shrink-0 ${
-                        r.verdictAllowed ? "border-ok text-ok bg-ok-bg" : "border-deny text-deny bg-deny-bg"
+                        r.verdictAllowed
+                          ? "border-ok text-ok bg-ok-bg"
+                          : r.verdictCode === "PARSE_FAILED"
+                            ? "border-line text-ink-3 bg-surface"
+                            : "border-deny text-deny bg-deny-bg"
                       }`}
                     >
-                      {r.verdictAllowed ? "ALLOW" : r.verdictCode}
+                      {r.verdictAllowed ? "ALLOW" : r.verdictCode === "PARSE_FAILED" ? "NO MATCH" : r.verdictCode}
                     </span>
                     <span className="truncate font-mono text-[11px] text-ink-2">“{r.heard}”</span>
                   </span>
