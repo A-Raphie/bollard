@@ -279,20 +279,7 @@ export class VoiceSession {
   }
 
   private handleAudio(e: AudioProcessingEvent): void {
-    const buf = e.inputBuffer;
-    const numChannels = buf.numberOfChannels;
-    const ch0 = buf.getChannelData(0);
-    const raw = new Float32Array(ch0.length);
-
-    // If multi-channel input, downmix by averaging; otherwise copy channel 0
-    if (numChannels > 1) {
-      const ch1 = buf.getChannelData(1);
-      for (let i = 0; i < ch0.length; i++) {
-        raw[i] = (ch0[i] + ch1[i]) * 0.5;
-      }
-    } else {
-      raw.set(ch0);
-    }
+    const raw = e.inputBuffer.getChannelData(0);
 
     let sum = 0;
     for (let i = 0; i < raw.length; i++) sum += raw[i] * raw[i];
