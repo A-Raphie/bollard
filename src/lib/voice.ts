@@ -98,29 +98,19 @@ export class VoiceSession {
       this.transcriptTimer = null;
     }
 
-    // 1. Acquire mic (try unconstrained audio: true first to avoid CoreAudio VoiceProcessingIO lock)
+    // 1. Acquire mic (try simple unconstrained stream first, then fallback to noise-suppressed)
     try {
-      const getMic = async () => {
-        try {
-          return await navigator.mediaDevices.getUserMedia({ audio: true });
-        } catch {
-          return await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true },
-          });
-        }
-      };
-      const micTimeout = new Promise<never>((_, rej) =>
-        setTimeout(
-          () =>
-            rej(
-              new Error(
-                "Microphone timed out. Check macOS System Settings → Privacy & Security → Microphone → Google Chrome."
-              )
-            ),
-          10000
-        )
-      );
-      this.stream = await Promise.race([getMic(), micTimeout]);
+      try {
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        this.stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true },
+        });
+      }
+      if (this.stopping) {
+        this.stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
 
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new AudioCtx();
